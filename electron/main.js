@@ -24,11 +24,14 @@ function createWindow() {
     }
   })
 
-  if (process.env.NODE_ENV === 'development') {
+  if (!app.isPackaged && process.env.NODE_ENV === 'development') {
     mainWindow.loadURL('http://localhost:5188')
     mainWindow.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+    const indexPath = app.isPackaged
+      ? path.join(__dirname, '../dist/index.html')
+      : path.join(__dirname, '../../dist/index.html')
+    mainWindow.loadFile(indexPath)
   }
 
   mainWindow.on('closed', () => {

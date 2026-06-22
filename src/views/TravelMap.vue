@@ -185,6 +185,9 @@ import {
   IconPlayCircle,
   IconFile
 } from '@arco-design/web-vue/es/icon'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import html2canvas from 'html2canvas'
 
 const router = useRouter()
 const api = window.electronAPI
@@ -306,11 +309,6 @@ const previewTitle = computed(() => currentPreviewMedia.value?.title || currentP
 
 const initMap = () => {
   if (!mapRef.value || mapInstance) return
-  const L = window.L
-  if (!L) {
-    setTimeout(initMap, 300)
-    return
-  }
   mapInstance = L.map(mapRef.value, {
     center: [35.8617, 104.1954],
     zoom: 4,
@@ -332,7 +330,6 @@ const initMap = () => {
 
 const onTileLayerChange = () => {
   if (!mapInstance) return
-  const L = window.L
   if (currentTileLayer) {
     mapInstance.removeLayer(currentTileLayer)
   }
@@ -382,7 +379,6 @@ const clearTravelSelection = () => {
 
 const renderMap = () => {
   if (!mapInstance) return
-  const L = window.L
   markersLayer.clearLayers()
   pathLayer.clearLayers()
   travelLayer.clearLayers()
@@ -400,7 +396,6 @@ const renderMap = () => {
 
 const renderNormalMap = () => {
   if (!mapInstance) return
-  const L = window.L
   const bounds = []
   const travels = filteredTravels.value
   const media = filteredMedia.value
@@ -531,7 +526,6 @@ const renderNormalMap = () => {
 
 const renderHeatMap = () => {
   if (!mapInstance) return
-  const L = window.L
   const media = filteredMedia.value
   const travels = filteredTravels.value
   const bounds = []
@@ -612,7 +606,7 @@ const exportMapImage = async () => {
   try {
     Message.loading({ content: '正在生成图片...', duration: 0, id: 'export-loading' })
     await nextTick()
-    const canvas = await window.html2canvas(mapWrapperRef.value, {
+    const canvas = await html2canvas(mapWrapperRef.value, {
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',

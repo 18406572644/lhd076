@@ -17,6 +17,8 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
 const props = defineProps({
   travelId: [Number, String]
@@ -41,11 +43,6 @@ const colorList = ['#7eb8da', '#c4a77d', '#e8a5b9', '#8bc9a0', '#b59ad6', '#f2d5
 
 const initMap = () => {
   if (!mapRef.value || mapInstance) return
-  const L = window.L
-  if (!L) {
-    setTimeout(initMap, 300)
-    return
-  }
   mapInstance = L.map(mapRef.value, {
     center: [30.5928, 114.3055],
     zoom: 4,
@@ -77,7 +74,6 @@ const loadData = async () => {
 
 const renderMarkers = () => {
   if (!mapInstance) return
-  const L = window.L
   markersLayer.clearLayers()
   pathLayer.clearLayers()
   const bounds = []

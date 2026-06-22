@@ -24,6 +24,18 @@ export default defineConfig({
         }
       },
       {
+        entry: 'electron/db.js',
+        vite: {
+          build: {
+            sourcemap: false,
+            outDir: 'dist-electron/main',
+            rollupOptions: {
+              external: ['better-sqlite3', 'sharp']
+            }
+          }
+        }
+      },
+      {
         entry: 'electron/preload.js',
         onstart(options) {
           options.reload()
