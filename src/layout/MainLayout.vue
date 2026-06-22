@@ -161,7 +161,10 @@ onMounted(async () => {
 <style lang="less" scoped>
 .main-layout {
   height: 100%;
-  display: flex;
+  display: flex !important;
+  flex-direction: row !important;
+  min-height: 0;
+  width: 100%;
 }
 
 .sidebar {

@@ -151,6 +151,94 @@ class TravelDB {
       CREATE INDEX IF NOT EXISTS idx_photo_book_pages_book ON photo_book_pages(photo_book_id);
       CREATE INDEX IF NOT EXISTS idx_photo_book_elements_page ON photo_book_elements(page_id);
     `)
+
+    this.upgradeSchema()
+  }
+
+  upgradeSchema() {
+    const schemas = {
+      travels: [
+        'title TEXT', 'description TEXT', 'location TEXT', 'latitude REAL',
+        'longitude REAL', 'start_date TEXT', 'end_date TEXT', 'cover_image TEXT',
+        'tags TEXT',
+        'created_at TEXT DEFAULT CURRENT_TIMESTAMP',
+        'updated_at TEXT DEFAULT CURRENT_TIMESTAMP'
+      ],
+      albums: [
+        'travel_id INTEGER', 'title TEXT', 'description TEXT', 'cover_image TEXT',
+        'created_at TEXT DEFAULT CURRENT_TIMESTAMP',
+        'updated_at TEXT DEFAULT CURRENT_TIMESTAMP'
+      ],
+      media: [
+        'travel_id INTEGER', 'file_name TEXT NOT NULL', 'original_name TEXT',
+        'file_path TEXT NOT NULL', 'file_size INTEGER', 'file_type TEXT',
+        'mime_type TEXT', 'width INTEGER', 'height INTEGER', 'duration INTEGER',
+        'thumbnail_path TEXT', 'taken_at TEXT', 'latitude REAL', 'longitude REAL',
+        'location TEXT', 'camera TEXT', 'title TEXT', 'description TEXT',
+        'tags TEXT', 'is_favorite INTEGER DEFAULT 0',
+        'created_at TEXT DEFAULT CURRENT_TIMESTAMP',
+        'updated_at TEXT DEFAULT CURRENT_TIMESTAMP'
+      ],
+      expenses: [
+        'travel_id INTEGER NOT NULL', 'category TEXT NOT NULL',
+        'amount REAL NOT NULL', "currency TEXT DEFAULT 'CNY'",
+        'description TEXT', 'expense_date TEXT',
+        'created_at TEXT DEFAULT CURRENT_TIMESTAMP'
+      ],
+      itinerary: [
+        'travel_id INTEGER NOT NULL', 'day_index INTEGER DEFAULT 1',
+        'time_slot TEXT', 'title TEXT NOT NULL', 'description TEXT',
+        'location TEXT', 'latitude REAL', 'longitude REAL',
+        'sort_order INTEGER DEFAULT 0'
+      ],
+      photo_books: [
+        'album_id INTEGER', 'title TEXT NOT NULL', 'description TEXT',
+        "template_type TEXT NOT NULL DEFAULT 'a4_hardcover'",
+        'page_count INTEGER DEFAULT 0', 'cover_image TEXT', 'config TEXT',
+        'created_at TEXT DEFAULT CURRENT_TIMESTAMP',
+        'updated_at TEXT DEFAULT CURRENT_TIMESTAMP'
+      ],
+      photo_book_pages: [
+        'photo_book_id INTEGER NOT NULL',
+        'page_number INTEGER NOT NULL DEFAULT 1',
+        'template_id TEXT',
+        "background_color TEXT DEFAULT '#ffffff'",
+        'background_image TEXT', 'config TEXT',
+        'sort_order INTEGER DEFAULT 0'
+      ],
+      photo_book_elements: [
+        'page_id INTEGER NOT NULL', 'element_type TEXT NOT NULL',
+        'media_id INTEGER', 'content TEXT',
+        'x REAL DEFAULT 0', 'y REAL DEFAULT 0',
+        'width REAL DEFAULT 100', 'height REAL DEFAULT 100',
+        'rotation REAL DEFAULT 0', 'z_index INTEGER DEFAULT 0',
+        'style TEXT', 'config TEXT'
+      ],
+      album_media: [
+        'album_id INTEGER NOT NULL', 'media_id INTEGER NOT NULL',
+        'sort_order INTEGER DEFAULT 0'
+      ]
+    }
+
+    for (const [table, columns] of Object.entries(schemas)) {
+      try {
+        const existing = new Set(
+          this.db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name)
+        )
+        for (const colDef of columns) {
+          const colName = colDef.split(/\s+/)[0]
+          if (!existing.has(colName)) {
+            try {
+              this.db.prepare(`ALTER TABLE ${table} ADD COLUMN ${colDef}`).run()
+            } catch (e) {
+              console.warn(`ALTER TABLE ${table} ADD ${colName} skipped:`, e.message)
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`Schema check for ${table} failed:`, e.message)
+      }
+    }
   }
 
   all(sql, params = []) {
@@ -514,13 +602,22 @@ class TravelDB {
   }
 
   getOverviewStats() {
-    const travels = this.db.prepare('SELECT COUNT(*) as count FROM travels').get().count
-    const albums = this.db.prepare('SELECT COUNT(*) as count FROM albums').get().count
-    const photos = this.db.prepare("SELECT COUNT(*) as count FROM media WHERE file_type = 'image'").get().count
-    const videos = this.db.prepare("SELECT COUNT(*) as count FROM media WHERE file_type = 'video'").get().count
-    const totalSize = this.db.prepare('SELECT COALESCE(SUM(file_size), 0) as total FROM media').get().total
-    const expenseTotal = this.db.prepare('SELECT COALESCE(SUM(amount), 0) as total FROM expenses').get().total
-    const locations = this.db.prepare('SELECT COUNT(DISTINCT location) as count FROM media WHERE location IS NOT NULL AND location != ""').get().count
+    const safeGet = (sql, field = 'count', fallback = 0) => {
+      try {
+        const row = this.db.prepare(sql).get()
+        return row && row[field] !== undefined ? row[field] : fallback
+      } catch (e) {
+        console.warn('Stat query skipped:', sql, '->', e.message)
+        return fallback
+      }
+    }
+    const travels = safeGet('SELECT COUNT(*) as count FROM travels')
+    const albums = safeGet('SELECT COUNT(*) as count FROM albums')
+    const photos = safeGet("SELECT COUNT(*) as count FROM media WHERE file_type = 'image'")
+    const videos = safeGet("SELECT COUNT(*) as count FROM media WHERE file_type = 'video'")
+    const totalSize = safeGet('SELECT COALESCE(SUM(file_size), 0) as total FROM media', 'total', 0)
+    const expenseTotal = safeGet('SELECT COALESCE(SUM(amount), 0) as total FROM expenses', 'total', 0)
+    const locations = safeGet("SELECT COUNT(DISTINCT location) as count FROM media WHERE location IS NOT NULL AND location != ''")
     return { travels, albums, photos, videos, totalSize, expenseTotal, locations }
   }
 

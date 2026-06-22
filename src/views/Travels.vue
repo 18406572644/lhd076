@@ -117,9 +117,10 @@ import {
 import TravelFormModal from '@/components/TravelFormModal.vue'
 import ImportModal from '@/components/ImportModal.vue'
 import { formatDate, parseTags } from '@/utils'
+import { useTravelStore } from '@/stores/travel'
 
 const router = useRouter()
-const api = window.electronAPI
+const travelStore = useTravelStore()
 
 const iconPlus = IconPlus
 const iconUpload = IconUpload
@@ -132,7 +133,7 @@ const iconStarFill = IconStarFill
 const iconEdit = IconEdit
 const iconDelete = IconDelete
 
-const travels = ref([])
+const travels = computed(() => travelStore.travels)
 const search = ref('')
 const formVisible = ref(false)
 const importVisible = ref(false)
@@ -174,16 +175,15 @@ const importToTravel = (t) => {
 
 const deleteTravel = async (t) => {
   try {
-    await api.travel.delete(t.id)
+    await travelStore.deleteTravel(t.id)
     Message.success('已删除')
-    await loadTravels()
   } catch (e) {
     Message.error('删除失败')
   }
 }
 
 const loadTravels = async () => {
-  travels.value = await api.travel.list()
+  await travelStore.fetchTravels()
 }
 
 onMounted(loadTravels)

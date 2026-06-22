@@ -133,7 +133,7 @@ const fileList = ref([])
 const previewList = ref([])
 const importing = ref(false)
 const currentIndex = ref(0)
-const travels = ref([])
+const travels = computed(() => travelStore.travels)
 
 const formData = ref({
   travelId: undefined,
@@ -152,8 +152,22 @@ watch(() => props.defaultTravelId, (val) => {
   if (val) formData.value.travelId = val
 })
 
+watch(visible, async (v) => {
+  if (v) {
+    try {
+      await travelStore.fetchTravels()
+    } catch (e) {
+      console.warn('加载旅行列表失败:', e)
+    }
+  }
+})
+
 onMounted(async () => {
-  travels.value = await travelStore.fetchTravels()
+  try {
+    await travelStore.fetchTravels()
+  } catch (e) {
+    console.warn('加载旅行列表失败:', e)
+  }
 })
 
 const readFileAsDataURL = (filePath) => {

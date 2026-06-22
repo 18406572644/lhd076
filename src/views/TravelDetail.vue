@@ -181,10 +181,15 @@ import ItineraryEditor from '@/components/ItineraryEditor.vue'
 import ExpenseTracker from '@/components/ExpenseTracker.vue'
 import MiniTravelMap from '@/components/MiniTravelMap.vue'
 import { formatDate, formatDateTime, parseTags, groupByDate, getDateRange } from '@/utils'
+import { useTravelStore } from '@/stores/travel'
+import { useMediaStore } from '@/stores/media'
+import { useAlbumStore } from '@/stores/album'
 
 const route = useRoute()
 const router = useRouter()
-const api = window.electronAPI
+const travelStore = useTravelStore()
+const mediaStore = useMediaStore()
+const albumStore = useAlbumStore()
 
 const iconBackward = IconBackward
 const iconLocation = IconLocation
@@ -197,9 +202,9 @@ const iconFile = IconFile
 const iconPlus = IconPlus
 
 const travelId = computed(() => +route.params.id)
-const travel = ref(null)
-const media = ref([])
-const albums = ref([])
+const travel = computed(() => travelStore.currentTravel)
+const media = computed(() => mediaStore.mediaList)
+const albums = computed(() => albumStore.albums)
 const activeTab = ref('media')
 const viewMode = ref('grid')
 const search = ref('')
@@ -271,17 +276,18 @@ const openPreview = (m, i) => {
 const onPreviewChange = (i) => { previewIndex.value = i }
 
 const onMediaDelete = async (id) => {
-  media.value = media.value.filter(m => m.id !== id)
+  await mediaStore.deleteMedia(id)
   await loadTravel()
 }
 
 const openAddToAlbum = () => { addToAlbumVisible.value = true }
 
 const batchDelete = async () => {
+  const n = selectedIds.value.length
   for (const id of selectedIds.value) {
-    await api.media.delete(id)
+    await mediaStore.deleteMedia(id)
   }
-  Message.success(`已删除 ${selectedIds.value.length} 个文件`)
+  Message.success(`已删除 ${n} 个文件`)
   clearSelection()
   await loadMedia()
   await loadTravel()
@@ -302,21 +308,19 @@ const albumCoverStyle = (a) => {
 }
 
 const loadTravel = async () => {
-  travel.value = await api.travel.get(travelId.value)
+  await travelStore.fetchTravel(travelId.value)
 }
 
 const loadMedia = async () => {
-  media.value = await api.media.getByTravel(travelId.value)
+  await mediaStore.fetchMediaByTravel(travelId.value)
 }
 
 const loadAlbums = async () => {
-  albums.value = await api.album.list()
+  await albumStore.fetchAlbums()
 }
 
 onMounted(async () => {
-  await loadTravel()
-  await loadMedia()
-  await loadAlbums()
+  await Promise.all([loadTravel(), loadMedia(), loadAlbums()])
 })
 
 watch(travelId, () => {

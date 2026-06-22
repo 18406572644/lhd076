@@ -6,7 +6,6 @@
     :ok-text="isEdit ? '保存' : '创建'"
     @ok="handleSubmit"
     @cancel="visible = false"
-    unmount-on-close
   >
     <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
       <a-form-item field="title" label="旅行名称">
@@ -172,6 +171,10 @@ const getLocationByAddress = async () => {
 }
 
 const handleSubmit = async () => {
+  if (!formRef.value) {
+    Message.warning('表单未就绪，请稍后重试')
+    return
+  }
   try {
     await formRef.value.validate()
   } catch {
@@ -181,7 +184,17 @@ const handleSubmit = async () => {
   const tags = tagsText.value
     .split(/[,，]/).map(s => s.trim()).filter(Boolean)
 
-  const data = { ...form, tags }
+  const data = {
+    title: form.title,
+    description: form.description || '',
+    location: form.location || '',
+    latitude: form.latitude ?? null,
+    longitude: form.longitude ?? null,
+    start_date: form.start_date || null,
+    end_date: form.end_date || null,
+    cover_image: form.cover_image || null,
+    tags
+  }
 
   try {
     if (isEdit.value) {
@@ -189,13 +202,13 @@ const handleSubmit = async () => {
       Message.success('旅行已更新')
     } else {
       const id = await api.travel.create(data)
-      Message.success('旅行创建成功')
+      Message.success(`旅行创建成功（ID: ${id}）`)
     }
     emit('success')
     visible.value = false
   } catch (e) {
     console.error(e)
-    Message.error('操作失败：' + e.message)
+    Message.error('操作失败：' + (e.message || '未知错误'))
   }
 }
 </script>
