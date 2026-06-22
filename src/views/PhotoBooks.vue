@@ -166,7 +166,7 @@ import { PHOTO_BOOK_TEMPLATES } from '@/utils/photoBookTemplates'
 import { formatDate } from '@/utils'
 
 const router = useRouter()
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const iconPlus = IconPlus
 const iconBook = IconBook
@@ -192,17 +192,27 @@ const createForm = reactive({
 
 const loadBooks = async () => {
   try {
-    bookList.value = await api.photobook.list()
+    if (api.photobook && typeof api.photobook.list === 'function') {
+      bookList.value = await api.photobook.list() || []
+    } else {
+      bookList.value = []
+    }
   } catch (e) {
     console.error('加载照片书列表失败:', e)
+    bookList.value = []
   }
 }
 
 const loadAlbums = async () => {
   try {
-    albumList.value = await api.album.list()
+    if (api.album && typeof api.album.list === 'function') {
+      albumList.value = await api.album.list() || []
+    } else {
+      albumList.value = []
+    }
   } catch (e) {
     console.error('加载相册列表失败:', e)
+    albumList.value = []
   }
 }
 

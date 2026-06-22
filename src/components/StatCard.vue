@@ -38,9 +38,10 @@ const colorMap = {
   purple: { bg: 'linear-gradient(135deg, #f0e8f7, #e5d6f0)', icon: '#b59ad6', text: '#9a7fc0' }
 }
 
-const style = computed(() => colorMap[props.color] || colorMap.blue)
-const cardStyle = computed(() => ({ background: style.value.bg }))
-const iconStyle = computed(() => ({ background: style.value.icon, color: '#fff' }))
+const safeStyle = computed(() => colorMap[props.color] || colorMap.blue)
+const cardStyle = computed(() => ({ background: safeStyle.value?.bg || colorMap.blue.bg }))
+const iconStyle = computed(() => ({ background: safeStyle.value?.icon || colorMap.blue.icon, color: '#fff' }))
+const textColor = computed(() => safeStyle.value?.text || colorMap.blue.text)
 const displayValue = computed(() => {
   if (typeof props.value === 'number' && props.value >= 10000) {
     return (props.value / 10000).toFixed(1) + 'w'
@@ -86,7 +87,7 @@ const displayValue = computed(() => {
   font-size: 26px;
   font-weight: 700;
   line-height: 1.1;
-  color: v-bind('style.value.text');
+  color: v-bind('textColor');
   font-family: 'Segoe UI', sans-serif;
 }
 

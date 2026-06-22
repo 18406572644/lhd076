@@ -89,7 +89,7 @@ const iconLocation = IconLocation
 const iconEdit = IconEdit
 const iconPlus = IconPlus
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const visible = computed({
   get: () => props.modelValue,

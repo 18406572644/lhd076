@@ -190,7 +190,7 @@ import 'leaflet/dist/leaflet.css'
 import html2canvas from 'html2canvas'
 
 const router = useRouter()
-const api = window.electronAPI
+const api = window.electronAPI || {}
 const iconFullscreen = IconFullscreen
 const iconInfo = IconInfo
 const iconFilter = IconFilter
@@ -345,9 +345,19 @@ const onViewModeChange = () => {
 }
 
 const loadData = async () => {
-  mapData.value = await api.stats.map()
-  selectedTravelIds.value = mapData.value.travels.map(t => t.id)
-  if (mapInstance) renderMap()
+  try {
+    if (api.stats && typeof api.stats.map === 'function') {
+      mapData.value = await api.stats.map() || { travels: [], media: [] }
+    } else {
+      mapData.value = { travels: [], media: [] }
+    }
+    selectedTravelIds.value = (mapData.value.travels || []).map(t => t.id)
+    if (mapInstance) renderMap()
+  } catch (e) {
+    console.warn('加载地图数据失败:', e)
+    mapData.value = { travels: [], media: [] }
+    selectedTravelIds.value = []
+  }
 }
 
 const toggleTravel = (id) => {

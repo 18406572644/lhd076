@@ -24,7 +24,7 @@ const props = defineProps({
   travelId: [Number, String]
 })
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const mapRef = ref(null)
 let mapInstance = null

@@ -112,7 +112,7 @@ const props = defineProps({
 
 const emit = defineEmits(['change'])
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 const iconPlus = IconPlus
 
 const categoryNames = {

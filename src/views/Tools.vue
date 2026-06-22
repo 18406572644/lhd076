@@ -224,13 +224,14 @@
   </div>
 </template>
 
-<script setup>import { ref, reactive, computed } from 'vue'
+<script setup>
+import { ref, reactive, computed } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { IconPlus, IconRight } from '@arco-design/web-vue/es/icon'
 import MediaSelector from '@/components/MediaSelector.vue'
 import { formatDate } from '@/utils'
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const iconPlus = IconPlus
 const iconRight = IconRight

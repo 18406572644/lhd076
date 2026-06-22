@@ -53,7 +53,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'success'])
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const visible = computed({
   get: () => props.modelValue,

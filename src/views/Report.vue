@@ -355,7 +355,7 @@ import { buildStyledHtml, buildWordDoc, buildPptSlides } from '@/utils/exportUti
 
 const route = useRoute()
 const router = useRouter()
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const iconRefresh = IconRefresh
 const iconFile = IconFile
@@ -514,47 +514,85 @@ const goTravel = id => router.push(`/travels/${id}`)
 const loadData = async () => {
   loading.value = true
   try {
-    travels.value = await api.travel.list()
-    const ov = await api.stats.overview()
+    if (api.travel && typeof api.travel.list === 'function') {
+      travels.value = await api.travel.list() || []
+    } else {
+      travels.value = []
+    }
+
+    let ov = { travels: 0, albums: 0, photos: 0, videos: 0, locations: 0, totalSize: 0, expenseTotal: 0 }
+    if (api.stats && typeof api.stats.overview === 'function') {
+      ov = await api.stats.overview() || ov
+    }
     overview.value = ov
 
     if (selectedTravel.value) {
       travelList.value = travels.value.filter(t => t.id === selectedTravel.value)
       const t = travelList.value[0]
+      let photos = 0
+      let videos = 0
+      if (api.media && typeof api.media.list === 'function') {
+        photos = (await api.media.list({ travel_id: selectedTravel.value, file_type: 'image' }) || []).length
+        videos = (await api.media.list({ travel_id: selectedTravel.value, file_type: 'video' }) || []).length
+      }
       overview.value = {
         travels: 1,
         albums: t?.album_count || 0,
-        photos: (await api.media.list({ travel_id: selectedTravel.value, file_type: 'image' })).length,
-        videos: (await api.media.list({ travel_id: selectedTravel.value, file_type: 'video' })).length,
-        locations: ov.locations,
-        totalSize: ov.totalSize
+        photos,
+        videos,
+        locations: ov.locations || 0,
+        totalSize: ov.totalSize || 0
       }
-      expenseSummary.value = await api.expense.summary(selectedTravel.value)
-      const expList = await api.expense.list(selectedTravel.value)
-      expenseTotal.value = expList.reduce((s, e) => s + Number(e.amount || 0), 0)
-      allMedia.value = await api.media.getByTravel(selectedTravel.value)
+      if (api.expense && typeof api.expense.summary === 'function') {
+        expenseSummary.value = await api.expense.summary(selectedTravel.value) || []
+      } else {
+        expenseSummary.value = []
+      }
+      if (api.expense && typeof api.expense.list === 'function') {
+        const expList = await api.expense.list(selectedTravel.value) || []
+        expenseTotal.value = expList.reduce((s, e) => s + Number(e.amount || 0), 0)
+      } else {
+        expenseTotal.value = 0
+      }
+      if (api.media && typeof api.media.getByTravel === 'function') {
+        allMedia.value = await api.media.getByTravel(selectedTravel.value) || []
+      } else {
+        allMedia.value = []
+      }
     } else {
       travelList.value = travels.value
       expenseSummary.value = []
       expenseTotal.value = 0
       for (const t of travels.value) {
-        const list = await api.expense.list(t.id)
-        expenseTotal.value += list.reduce((s, e) => s + Number(e.amount || 0), 0)
-        const summary = await api.expense.summary(t.id)
-        for (const s of summary) {
-          const existing = expenseSummary.value.find(e => e.category === s.category)
-          if (existing) {
-            existing.total += s.total
-            existing.count += s.count
-          } else {
-            expenseSummary.value.push({ ...s })
+        if (api.expense && typeof api.expense.list === 'function') {
+          const list = await api.expense.list(t.id) || []
+          expenseTotal.value += list.reduce((s, e) => s + Number(e.amount || 0), 0)
+        }
+        if (api.expense && typeof api.expense.summary === 'function') {
+          const summary = await api.expense.summary(t.id) || []
+          for (const s of summary) {
+            const existing = expenseSummary.value.find(e => e.category === s.category)
+            if (existing) {
+              existing.total += s.total
+              existing.count += s.count
+            } else {
+              expenseSummary.value.push({ ...s })
+            }
           }
         }
       }
       expenseSummary.value.sort((a, b) => b.total - a.total)
-      allMedia.value = await api.media.list({ limit: 200 })
+      if (api.media && typeof api.media.list === 'function') {
+        allMedia.value = await api.media.list({ limit: 200 }) || []
+      } else {
+        allMedia.value = []
+      }
     }
-    allTags.value = await api.tags.list()
+    if (api.tags && typeof api.tags.list === 'function') {
+      allTags.value = await api.tags.list() || []
+    } else {
+      allTags.value = []
+    }
   } finally {
     loading.value = false
   }

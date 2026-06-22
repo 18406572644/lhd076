@@ -63,11 +63,12 @@
   </a-modal>
 </template>
 
-<script setup>import { ref, computed, onMounted, watch } from 'vue'
+<script setup>
+import { ref, computed, onMounted, watch } from 'vue'
 import { IconPlayCircle, IconCheck } from '@arco-design/web-vue/es/icon'
 import { formatDate } from '@/utils'
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const iconPlay = IconPlayCircle
 const iconCheck = IconCheck

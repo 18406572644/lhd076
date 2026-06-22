@@ -117,7 +117,7 @@ const props = defineProps({
 
 const emit = defineEmits(['change'])
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const iconCalendar = IconCalendar
 const iconPlus = IconPlus

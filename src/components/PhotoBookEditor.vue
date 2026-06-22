@@ -310,7 +310,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'saved'])
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const iconBack = IconBackward
 const iconUndo = IconToLeft

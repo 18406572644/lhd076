@@ -95,6 +95,15 @@ onMounted(async () => {
   }
 })
 
+const reset = () => {
+  Object.assign(form, {
+    title: '',
+    travel_id: props.defaultTravelId || null,
+    cover_image: '',
+    description: ''
+  })
+}
+
 watch(() => props.album, (val) => {
   if (val) {
     Object.assign(form, {
@@ -115,15 +124,6 @@ watch(() => props.defaultTravelId, (v) => {
 watch(visible, (v) => {
   if (!v) reset()
 })
-
-const reset = () => {
-  Object.assign(form, {
-    title: '',
-    travel_id: props.defaultTravelId || null,
-    cover_image: '',
-    description: ''
-  })
-}
 
 const selectCover = async () => {
   try {

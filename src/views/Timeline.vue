@@ -143,7 +143,7 @@ import { groupByMonth, formatDate } from '@/utils'
 import MediaCard from '@/components/MediaCard.vue'
 import MediaPreview from '@/components/MediaPreview.vue'
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const media = ref([])
 const travels = ref([])
@@ -236,8 +236,22 @@ const expandMonth = (mItem) => {
 }
 
 const loadData = async () => {
-  media.value = await api.media.list({ limit: 2000 })
-  travels.value = await api.travel.list()
+  try {
+    if (api.media && typeof api.media.list === 'function') {
+      media.value = await api.media.list({ limit: 2000 }) || []
+    } else {
+      media.value = []
+    }
+    if (api.travel && typeof api.travel.list === 'function') {
+      travels.value = await api.travel.list() || []
+    } else {
+      travels.value = []
+    }
+  } catch (e) {
+    console.warn('加载时间轴数据失败:', e)
+    media.value = []
+    travels.value = []
+  }
 }
 
 onMounted(loadData)

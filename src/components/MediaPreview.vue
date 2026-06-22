@@ -157,7 +157,7 @@ const iconDownload = IconDownload
 const iconFolder = IconFolder
 const iconDelete = IconDelete
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const visible = computed({
   get: () => props.modelValue,

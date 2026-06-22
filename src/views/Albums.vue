@@ -98,7 +98,7 @@ import AlbumFormModal from '@/components/AlbumFormModal.vue'
 import { formatDate } from '@/utils'
 
 const router = useRouter()
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const iconPlus = IconPlus
 const iconPicture = IconFileImage
@@ -153,7 +153,16 @@ const removeAlbum = async (a) => {
 }
 
 const loadAlbums = async () => {
-  albums.value = await api.album.list()
+  try {
+    if (api.album && typeof api.album.list === 'function') {
+      albums.value = await api.album.list() || []
+    } else {
+      albums.value = []
+    }
+  } catch (e) {
+    console.warn('加载相册列表失败:', e)
+    albums.value = []
+  }
 }
 
 onMounted(loadAlbums)

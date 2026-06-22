@@ -137,7 +137,7 @@ import PhotoBookEditor from '@/components/PhotoBookEditor.vue'
 import { formatDate } from '@/utils'
 
 const route = useRoute()
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const iconBack = IconBackward
 const iconPicture = IconFileImage
