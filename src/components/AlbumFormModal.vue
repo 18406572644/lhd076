@@ -22,11 +22,18 @@
           <div class="cover-preview" v-if="form.cover_image" @click="selectCover">
             <img :src="'file:///' + form.cover_image.replace(/\\/g, '/')" />
           </div>
-          <div v-else class="cover-placeholder" @click="selectCover">
+          <div class="cover-placeholder" @click="selectCover">
             <icon-plus :size="20" />
             <span>选择封面</span>
           </div>
         </div>
+        <input
+          ref="coverInputRef"
+          type="file"
+          accept="image/*"
+          style="display: none"
+          @change="onCoverFileChange"
+        />
       </a-form-item>
       <a-form-item label="描述">
         <a-textarea
@@ -53,7 +60,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'success'])
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 const iconPlus = IconPlus
 
 const visible = computed({
@@ -61,13 +68,14 @@ const visible = computed({
   set: (v) => emit('update:modelValue', v)
 })
 
-const isEdit = computed(() => !!props.album?.id)
+const isEdit = computed(() => !!(props.album && props.album.id))
 const formRef = ref()
+const coverInputRef = ref(null)
 const travels = ref([])
 
 const form = reactive({
   title: '',
-  travel_id: undefined,
+  travel_id: null,
   cover_image: '',
   description: ''
 })
@@ -77,14 +85,21 @@ const rules = {
 }
 
 onMounted(async () => {
-  travels.value = await api.travel.list()
+  try {
+    if (api.travel && typeof api.travel.list === 'function') {
+      travels.value = await api.travel.list() || []
+    }
+  } catch (e) {
+    console.warn('加载旅行列表失败:', e)
+    travels.value = []
+  }
 })
 
 watch(() => props.album, (val) => {
   if (val) {
     Object.assign(form, {
       title: val.title || '',
-      travel_id: val.travel_id || undefined,
+      travel_id: val.travel_id || null,
       cover_image: val.cover_image || '',
       description: val.description || ''
     })
@@ -104,32 +119,79 @@ watch(visible, (v) => {
 const reset = () => {
   Object.assign(form, {
     title: '',
-    travel_id: props.defaultTravelId || undefined,
+    travel_id: props.defaultTravelId || null,
     cover_image: '',
     description: ''
   })
 }
 
 const selectCover = async () => {
-  const r = await api.selectFiles()
-  if (r.canceled || !r.filePaths?.length) return
-  form.cover_image = r.filePaths[0]
+  try {
+    if (window.electronAPI && typeof window.electronAPI.selectFiles === 'function') {
+      const r = await window.electronAPI.selectFiles()
+      if (r && !r.canceled && r.filePaths && r.filePaths.length > 0) {
+        form.cover_image = r.filePaths[0]
+        return
+      }
+      if (r && r.canceled) return
+    }
+  } catch (e) {
+    console.warn('Electron 封面选择失败，回退到浏览器方式:', e.message)
+  }
+  if (coverInputRef.value) {
+    coverInputRef.value.click()
+  }
+}
+
+const onCoverFileChange = (e) => {
+  const files = e.target.files
+  if (!files || !files.length) return
+  const file = files[0]
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    form.cover_image = ev.target.result
+  }
+  reader.readAsDataURL(file)
+  if (coverInputRef.value) coverInputRef.value.value = ''
 }
 
 const handleSubmit = async () => {
-  try { await formRef.value.validate() } catch { return }
   try {
+    await formRef.value.validate()
+  } catch (e) {
+    return
+  }
+  try {
+    if (!api.album) {
+      Message.error('相册功能不可用')
+      return
+    }
+    const data = {
+      title: form.title || '',
+      travel_id: form.travel_id || null,
+      cover_image: form.cover_image || '',
+      description: form.description || ''
+    }
     if (isEdit.value) {
-      await api.album.update(props.album.id, { ...form })
+      if (typeof api.album.update !== 'function') {
+        Message.error('更新功能不可用')
+        return
+      }
+      await api.album.update(props.album.id, data)
       Message.success('相册已更新')
     } else {
-      await api.album.create({ ...form })
+      if (typeof api.album.create !== 'function') {
+        Message.error('创建功能不可用')
+        return
+      }
+      await api.album.create(data)
       Message.success('相册创建成功')
     }
     emit('success')
     visible.value = false
   } catch (e) {
-    Message.error('操作失败')
+    console.error('操作失败:', e)
+    Message.error('操作失败：' + (e && e.message ? e.message : '未知错误'))
   }
 }
 </script>

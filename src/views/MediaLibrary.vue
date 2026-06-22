@@ -142,7 +142,7 @@ import ImportModal from '@/components/ImportModal.vue'
 import AddToAlbumModal from '@/components/AddToAlbumModal.vue'
 import { groupByMonth, parseTags } from '@/utils'
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const iconUpload = IconUpload
 const iconApps = IconApps
@@ -167,61 +167,91 @@ const previewIndex = ref(0)
 const addToAlbumVisible = ref(false)
 
 const filteredMedia = computed(() => {
-  let list = media.value
-  if (search.value) {
-    const q = search.value.toLowerCase()
-    list = list.filter(m =>
-      (m.title && m.title.toLowerCase().includes(q)) ||
-      (m.original_name && m.original_name.toLowerCase().includes(q)) ||
-      (m.location && m.location.toLowerCase().includes(q)) ||
-      (m.tags && m.tags.toLowerCase().includes(q))
-    )
+  try {
+    let list = media.value || []
+    if (search.value) {
+      const q = search.value.toLowerCase()
+      list = list.filter(m =>
+        (m.title && m.title.toLowerCase().includes(q)) ||
+        (m.original_name && m.original_name.toLowerCase().includes(q)) ||
+        (m.location && m.location.toLowerCase().includes(q)) ||
+        (m.tags && m.tags.toLowerCase().includes(q))
+      )
+    }
+    if (filterFav.value) list = list.filter(m => m.is_favorite)
+    if (filterType.value) list = list.filter(m => m.file_type === filterType.value)
+    if (filterTravel.value) list = list.filter(m => m.travel_id === filterTravel.value)
+    if (filterTags.value && filterTags.value.length) {
+      list = list.filter(m => {
+        try {
+          const t = parseTags(m.tags)
+          return filterTags.value.every(ft => t.includes(ft))
+        } catch (e) {
+          return false
+        }
+      })
+    }
+    return list
+  } catch (e) {
+    console.error('筛选媒体出错:', e)
+    return []
   }
-  if (filterFav.value) list = list.filter(m => m.is_favorite)
-  if (filterType.value) list = list.filter(m => m.file_type === filterType.value)
-  if (filterTravel.value) list = list.filter(m => m.travel_id === filterTravel.value)
-  if (filterTags.value.length) {
-    list = list.filter(m => {
-      const t = parseTags(m.tags)
-      return filterTags.value.every(ft => t.includes(ft))
-    })
-  }
-  return list
 })
 
-const groupedMedia = computed(() => groupByMonth(filteredMedia.value))
+const groupedMedia = computed(() => {
+  try {
+    return groupByMonth(filteredMedia.value) || []
+  } catch (e) {
+    console.error('分组媒体出错:', e)
+    return []
+  }
+})
 
 const flatMedia = computed(() => {
-  if (viewMode.value === 'grid') return filteredMedia.value
-  const arr = []
-  for (const g of groupedMedia.value) arr.push(...g[1])
-  return arr
+  try {
+    if (viewMode.value === 'grid') return filteredMedia.value || []
+    const arr = []
+    const groups = groupedMedia.value || []
+    for (const g of groups) {
+      if (g && g[1]) arr.push(...g[1])
+    }
+    return arr
+  } catch (e) {
+    console.error('扁平化媒体出错:', e)
+    return []
+  }
 })
 
 const currentMedia = computed(() => flatMedia.value[previewIndex.value] || null)
 
 const isAllSelected = computed(() => {
-  if (!filteredMedia.value.length) return false
+  if (!filteredMedia.value || !filteredMedia.value.length) return false
   return filteredMedia.value.every(m => selectedIds.value.includes(m.id))
 })
 
 const allFav = computed(() => {
-  const sel = filteredMedia.value.filter(m => selectedIds.value.includes(m.id))
+  const sel = (filteredMedia.value || []).filter(m => selectedIds.value.includes(m.id))
   return sel.length && sel.every(m => m.is_favorite)
 })
 
-const flatIdx = (id) => flatMedia.value.findIndex(m => m.id === id)
+const flatIdx = (id) => {
+  try {
+    return flatMedia.value.findIndex(m => m.id === id)
+  } catch (e) {
+    return -1
+  }
+}
 
 const toggleSelect = (id, sel) => {
   if (sel) {
     if (!selectedIds.value.includes(id)) selectedIds.value.push(id)
   } else {
-    selectedIds.value = selectedIds.value.filter(x => x !== id)
+    selectedIds.value = selectedIds.value.filter(x => x.id !== undefined ? x.id !== id : x !== id)
   }
 }
 
 const toggleAll = (val) => {
-  selectedIds.value = val ? filteredMedia.value.map(m => m.id) : []
+  selectedIds.value = val ? (filteredMedia.value || []).map(m => m.id) : []
 }
 
 const clearSelection = () => { selectedIds.value = [] }
@@ -231,53 +261,134 @@ const openPreview = (m, i) => {
   previewVisible.value = true
 }
 
-const batchDelete = async () => {
-  for (const id of selectedIds.value) {
-    await api.media.delete(id)
+const hasApi = (methodPath) => {
+  if (!window.electronAPI) return false
+  const parts = methodPath.split('.')
+  let obj = window.electronAPI
+  for (const p of parts) {
+    if (!obj || obj[p] === undefined) return false
+    obj = obj[p]
   }
-  Message.success(`已删除 ${selectedIds.value.length} 个文件`)
-  clearSelection()
-  await loadMedia()
+  return typeof obj === 'function'
+}
+
+const batchDelete = async () => {
+  if (!hasApi('media.delete')) {
+    Message.error('删除功能不可用')
+    return
+  }
+  try {
+    for (const id of selectedIds.value) {
+      await window.electronAPI.media.delete(id)
+    }
+    Message.success(`已删除 ${selectedIds.value.length} 个文件`)
+    clearSelection()
+    await loadMedia()
+  } catch (e) {
+    console.error('批量删除失败:', e)
+    Message.error('删除失败：' + (e.message || '未知错误'))
+  }
 }
 
 const toggleFav = async () => {
-  const fav = allFav.value ? 0 : 1
-  await api.media.bulkUpdate(selectedIds.value, { is_favorite: fav })
-  Message.success(`已${fav ? '收藏' : '取消收藏'} ${selectedIds.value.length} 个文件`)
-  await loadMedia()
+  if (!hasApi('media.bulkUpdate')) {
+    Message.error('收藏功能不可用')
+    return
+  }
+  try {
+    const fav = allFav.value ? 0 : 1
+    await window.electronAPI.media.bulkUpdate(selectedIds.value, { is_favorite: fav })
+    Message.success(`已${fav ? '收藏' : '取消收藏'} ${selectedIds.value.length} 个文件`)
+    await loadMedia()
+  } catch (e) {
+    console.error('收藏切换失败:', e)
+    Message.error('操作失败：' + (e.message || '未知错误'))
+  }
 }
 
 const batchTag = async () => {
   try {
-    const { value } = await Message._ctx
+    if (!hasApi('media.update')) {
+      Message.error('标签功能不可用')
+      return
+    }
     const input = prompt('请输入要添加的标签，用逗号分隔：')
     if (!input) return
     const newTags = input.split(/[,，]/).map(s => s.trim()).filter(Boolean)
-    const items = media.value.filter(m => selectedIds.value.includes(m.id))
+    const items = (media.value || []).filter(m => selectedIds.value.includes(m.id))
     for (const m of items) {
-      const t = [...new Set([...parseTags(m.tags), ...newTags])]
-      await api.media.update(m.id, { tags: t })
+      try {
+        const t = [...new Set([...parseTags(m.tags), ...newTags])]
+        await window.electronAPI.media.update(m.id, { tags: t })
+      } catch (e) {
+        console.warn('更新标签失败:', m.id, e.message)
+      }
     }
     Message.success('标签已添加')
     await loadMedia()
   } catch (e) {
-    console.error(e)
+    console.error('批量添加标签失败:', e)
+    Message.error('操作失败：' + (e.message || '未知错误'))
   }
 }
 
 const onImportSuccess = async () => {
-  await loadMedia()
-  await loadTags()
+  try {
+    await loadMedia()
+    await loadTags()
+  } catch (e) {
+    console.error('导入后刷新失败:', e)
+  }
 }
 
-const loadMedia = async () => { media.value = await api.media.list({}) }
-const loadTags = async () => { allTags.value = await api.tags.list() }
-const loadTravels = async () => { travels.value = await api.travel.list() }
+const loadMedia = async () => {
+  if (!hasApi('media.list')) {
+    media.value = []
+    return
+  }
+  try {
+    media.value = await window.electronAPI.media.list({}) || []
+  } catch (e) {
+    console.error('加载媒体列表失败:', e)
+    media.value = []
+    Message.error('加载媒体失败')
+  }
+}
+
+const loadTags = async () => {
+  if (!hasApi('tags.list')) {
+    allTags.value = []
+    return
+  }
+  try {
+    allTags.value = await window.electronAPI.tags.list() || []
+  } catch (e) {
+    console.error('加载标签列表失败:', e)
+    allTags.value = []
+  }
+}
+
+const loadTravels = async () => {
+  if (!hasApi('travel.list')) {
+    travels.value = []
+    return
+  }
+  try {
+    travels.value = await window.electronAPI.travel.list() || []
+  } catch (e) {
+    console.error('加载旅行列表失败:', e)
+    travels.value = []
+  }
+}
 
 onMounted(async () => {
-  await loadMedia()
-  await loadTags()
-  await loadTravels()
+  try {
+    await loadMedia()
+    await loadTags()
+    await loadTravels()
+  } catch (e) {
+    console.error('媒体库初始化失败:', e)
+  }
 })
 </script>
 

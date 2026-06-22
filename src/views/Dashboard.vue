@@ -195,7 +195,7 @@ const iconPlus = IconPlus
 const iconTool = IconTool
 const iconFile = IconFile
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 const stats = ref({ travels: 0, albums: 0, photos: 0, videos: 0, totalSize: 0, expenseTotal: 0, locations: 0 })
 const recentTravels = ref([])
@@ -210,8 +210,9 @@ const currentMedia = ref(null)
 const availableYears = computed(() => {
   const years = new Set()
   years.add(new Date().getFullYear())
-  for (const d of timelineData.value) {
-    if (d.month) years.add(parseInt(d.month.split('-')[0]))
+  const data = timelineData.value || []
+  for (const d of data) {
+    if (d && d.month) years.add(parseInt(d.month.split('-')[0]))
   }
   return Array.from(years).sort((a, b) => b - a)
 })
@@ -224,12 +225,14 @@ const timelinePoints = computed(() => {
   const points = []
   const months = ['01','02','03','04','05','06','07','08','09','10','11','12']
   const shortMonths = ['1','2','3','4','5','6','7','8','9','10','11','12']
-  const maxCount = Math.max(...timelineData.value.filter(d => d.month?.startsWith(selectedYear.value)).map(d => d.count), 1)
+  const data = timelineData.value || []
+  const yearData = data.filter(d => d && d.month && d.month.startsWith(selectedYear.value))
+  const maxCount = Math.max(...yearData.map(d => d.count || 0), 1)
 
   for (let i = 0; i < 12; i++) {
     const month = `${selectedYear.value}-${months[i]}`
-    const items = timelineData.value.filter(d => d.month === month)
-    const count = items.reduce((s, d) => s + d.count, 0)
+    const items = data.filter(d => d && d.month === month)
+    const count = items.reduce((s, d) => s + (d.count || 0), 0)
     const image = items.find(d => d.file_type === 'image')?.count || 0
     const video = items.find(d => d.file_type === 'video')?.count || 0
     points.push({
@@ -264,16 +267,50 @@ const onImportSuccess = () => {
 
 const loadData = async () => {
   try {
-    stats.value = await api.stats.overview()
-    const travels = await api.travel.list()
-    recentTravels.value = travels.slice(0, 4)
-    recentMedia.value = await api.media.list({ limit: 8 })
-    timelineData.value = await api.stats.timeline()
-    if (!availableYears.value.includes(selectedYear.value)) {
+    if (api.stats && typeof api.stats.overview === 'function') {
+      try {
+        const overview = await api.stats.overview()
+        if (overview) stats.value = overview
+      } catch (e) {
+        console.warn('加载概览数据失败:', e)
+      }
+    }
+
+    if (api.travel && typeof api.travel.list === 'function') {
+      try {
+        const travels = await api.travel.list()
+        recentTravels.value = travels ? travels.slice(0, 4) : []
+      } catch (e) {
+        console.warn('加载旅行列表失败:', e)
+        recentTravels.value = []
+      }
+    }
+
+    if (api.media && typeof api.media.list === 'function') {
+      try {
+        const media = await api.media.list({ limit: 8 })
+        recentMedia.value = media || []
+      } catch (e) {
+        console.warn('加载媒体列表失败:', e)
+        recentMedia.value = []
+      }
+    }
+
+    if (api.stats && typeof api.stats.timeline === 'function') {
+      try {
+        const timeline = await api.stats.timeline()
+        timelineData.value = timeline || []
+      } catch (e) {
+        console.warn('加载时间线数据失败:', e)
+        timelineData.value = []
+      }
+    }
+
+    if (!availableYears.value.includes(selectedYear.value) && availableYears.value.length) {
       selectedYear.value = availableYears.value[0]
     }
   } catch (e) {
-    console.error(e)
+    console.error('加载数据失败:', e)
   }
 }
 

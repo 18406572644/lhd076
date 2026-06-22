@@ -37,14 +37,21 @@
       </a-form-item>
       <a-form-item label="封面图片">
         <div class="cover-upload">
-          <div class="cover-preview" v-if="form.cover_image" @click="selectCover">
+          <div class="cover-preview" v-if="form.cover_image" @click="handleSelectCover">
             <img :src="'file:///' + form.cover_image.replace(/\\/g, '/')" />
             <div class="cover-mask"><icon-edit /></div>
           </div>
-          <div v-else class="cover-placeholder" @click="selectCover">
+          <div v-else class="cover-placeholder" @click="handleSelectCover">
             <icon-plus :size="20" />
             <span>点击选择封面</span>
           </div>
+          <input
+            ref="coverInputRef"
+            type="file"
+            accept="image/*"
+            style="display: none"
+            @change="onCoverFileChange"
+          />
         </div>
       </a-form-item>
       <a-form-item label="标签">
@@ -92,13 +99,14 @@ const visible = computed({
 const isEdit = computed(() => !!props.travel?.id)
 
 const formRef = ref()
+const coverInputRef = ref()
 
 const form = reactive({
   title: '',
   description: '',
   location: '',
-  latitude: undefined,
-  longitude: undefined,
+  latitude: null,
+  longitude: null,
   start_date: '',
   end_date: '',
   cover_image: '',
@@ -112,14 +120,15 @@ const resetForm = () => {
     title: '',
     description: '',
     location: '',
-    latitude: undefined,
-    longitude: undefined,
+    latitude: null,
+    longitude: null,
     start_date: '',
     end_date: '',
     cover_image: '',
     tags: []
   })
   tagsText.value = ''
+  if (coverInputRef.value) coverInputRef.value.value = ''
 }
 
 watch(() => props.travel, (val) => {
@@ -128,17 +137,17 @@ watch(() => props.travel, (val) => {
       title: val.title || '',
       description: val.description || '',
       location: val.location || '',
-      latitude: val.latitude,
-      longitude: val.longitude,
+      latitude: val.latitude ?? null,
+      longitude: val.longitude ?? null,
       start_date: val.start_date || '',
       end_date: val.end_date || '',
       cover_image: val.cover_image || ''
     })
     try {
-      const tags = val.tags ? JSON.parse(val.tags) : []
+      const tags = val.tags ? (Array.isArray(val.tags) ? val.tags : JSON.parse(val.tags)) : []
       tagsText.value = tags.join(', ')
     } catch (e) {
-      tagsText.value = ''
+      tagsText.value = val.tags || ''
     }
   } else {
     resetForm()
@@ -153,11 +162,29 @@ const rules = {
   title: [{ required: true, message: '请输入旅行名称' }]
 }
 
-const selectCover = async () => {
-  const result = await api.selectFiles()
-  if (result.canceled || !result.filePaths?.length) return
-  const p = result.filePaths[0]
-  form.cover_image = p
+const handleSelectCover = async () => {
+  try {
+    if (window.electronAPI && typeof window.electronAPI.selectFiles === 'function') {
+      const result = await window.electronAPI.selectFiles()
+      if (result && !result.canceled && result.filePaths && result.filePaths.length > 0) {
+        form.cover_image = result.filePaths[0]
+        return
+      }
+    }
+  } catch (e) {
+    console.warn('Electron 文件选择失败，回退到浏览器方式:', e.message)
+  }
+  if (coverInputRef.value) {
+    coverInputRef.value.click()
+  }
+}
+
+const onCoverFileChange = (e) => {
+  const files = e.target.files
+  if (!files || !files.length) return
+  const file = files[0]
+  form.cover_image = file.name
+  Message.info('浏览器模式下仅能获取文件名，完整路径需在 Electron 环境中使用')
 }
 
 const getLocationByAddress = async () => {
@@ -165,9 +192,13 @@ const getLocationByAddress = async () => {
     Message.warning('请先输入地点名称')
     return
   }
-  Message.info('地理编码功能需要联网，此处演示固定坐标')
-  form.latitude = 25.6065
-  form.longitude = 100.2679
+  try {
+    form.latitude = 25.6065
+    form.longitude = 100.2679
+    Message.success('已填充示例坐标')
+  } catch (e) {
+    Message.error('坐标解析失败')
+  }
 }
 
 const handleSubmit = async () => {
@@ -175,21 +206,33 @@ const handleSubmit = async () => {
     Message.warning('表单未就绪，请稍后重试')
     return
   }
+
+  if (!window.electronAPI || !window.electronAPI.travel) {
+    Message.error('系统运行环境异常：无法连接主进程，请重启应用')
+    return
+  }
+
   try {
     await formRef.value.validate()
   } catch {
     return
   }
 
-  const tags = tagsText.value
-    .split(/[,，]/).map(s => s.trim()).filter(Boolean)
+  let tags = []
+  try {
+    if (tagsText.value && tagsText.value.trim()) {
+      tags = tagsText.value.split(/[,，]/).map(s => s.trim()).filter(Boolean)
+    }
+  } catch (e) {
+    tags = []
+  }
 
   const data = {
-    title: form.title,
+    title: form.title || '',
     description: form.description || '',
     location: form.location || '',
-    latitude: form.latitude ?? null,
-    longitude: form.longitude ?? null,
+    latitude: form.latitude !== undefined && form.latitude !== null ? form.latitude : null,
+    longitude: form.longitude !== undefined && form.longitude !== null ? form.longitude : null,
     start_date: form.start_date || null,
     end_date: form.end_date || null,
     cover_image: form.cover_image || null,
@@ -197,18 +240,23 @@ const handleSubmit = async () => {
   }
 
   try {
+    const travelApi = window.electronAPI.travel
     if (isEdit.value) {
-      await api.travel.update(props.travel.id, data)
+      if (!props.travel || !props.travel.id) {
+        Message.error('编辑失败：旅行 ID 缺失')
+        return
+      }
+      await travelApi.update(props.travel.id, data)
       Message.success('旅行已更新')
     } else {
-      const id = await api.travel.create(data)
+      const id = await travelApi.create(data)
       Message.success(`旅行创建成功（ID: ${id}）`)
     }
     emit('success')
     visible.value = false
   } catch (e) {
-    console.error(e)
-    Message.error('操作失败：' + (e.message || '未知错误'))
+    console.error('旅行保存失败:', e)
+    Message.error('操作失败：' + (e && e.message ? e.message : '未知错误'))
   }
 }
 </script>

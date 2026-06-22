@@ -7,6 +7,10 @@ let mainWindow
 let db
 
 function createWindow() {
+  const preloadPath = app.isPackaged
+    ? path.join(__dirname, '../preload/preload.js')
+    : path.join(__dirname, '../preload/preload.js')
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -15,9 +19,9 @@ function createWindow() {
     frame: true,
     backgroundColor: '#faf6f0',
     title: 'TravelMemory · 旅行记忆',
-    icon: path.join(__dirname, '../public/favicon.svg'),
+    icon: path.join(__dirname, '../../public/favicon.svg'),
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: false

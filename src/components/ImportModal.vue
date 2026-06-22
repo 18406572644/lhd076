@@ -11,13 +11,21 @@
   >
     <div class="import-modal">
       <div class="import-actions">
-        <a-button type="primary" size="large" :icon="iconFile" @click="selectFiles" block>
+        <a-button type="primary" size="large" :icon="iconFile" @click="handleSelectFiles" block>
           选择文件
         </a-button>
         <a-divider style="margin: 16px 0">或</a-divider>
-        <a-button type="outline" size="large" :icon="iconFolder" @click="selectFolder" block>
+        <a-button type="outline" size="large" :icon="iconFolder" @click="handleSelectFolder" block>
           选择文件夹（批量导入）
         </a-button>
+        <input
+          ref="fileInputRef"
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          style="display: none"
+          @change="onFileInputChange"
+        />
       </div>
 
       <div v-if="previewList.length > 0" class="preview-section">
@@ -129,6 +137,7 @@ const travelStore = useTravelStore()
 const mediaStore = useMediaStore()
 const appStore = useAppStore()
 
+const fileInputRef = ref(null)
 const fileList = ref([])
 const previewList = ref([])
 const importing = ref(false)
@@ -176,12 +185,16 @@ const readFileAsDataURL = (filePath) => {
     reader.onload = (e) => resolve(e.target.result)
     reader.onerror = () => resolve(null)
     try {
-      window.electronAPI.readFile(filePath).then(buffer => {
-        const ext = getFileExt(filePath)
-        const mime = getMime(ext)
-        const blob = new Blob([buffer], { type: mime })
-        reader.readAsDataURL(blob)
-      }).catch(() => resolve(null))
+      if (window.electronAPI && typeof window.electronAPI.readFile === 'function') {
+        window.electronAPI.readFile(filePath).then(buffer => {
+          const ext = getFileExt(filePath)
+          const mime = getMime(ext)
+          const blob = new Blob([buffer], { type: mime })
+          reader.readAsDataURL(blob)
+        }).catch(() => resolve(null))
+      } else {
+        resolve(null)
+      }
     } catch (e) {
       resolve(null)
     }
@@ -198,25 +211,84 @@ const getMime = (ext) => {
   return map[ext.toLowerCase()] || 'application/octet-stream'
 }
 
-const selectFiles = async () => {
-  const result = await window.electronAPI.selectFiles()
-  if (result.canceled || !result.filePaths?.length) return
-  await processFiles(result.filePaths)
+const handleSelectFiles = async () => {
+  try {
+    if (window.electronAPI && typeof window.electronAPI.selectFiles === 'function') {
+      const result = await window.electronAPI.selectFiles()
+      if (result && !result.canceled && result.filePaths && result.filePaths.length > 0) {
+        await processFiles(result.filePaths)
+        return
+      }
+      if (result && result.canceled) return
+    }
+  } catch (e) {
+    console.warn('Electron 文件选择失败，回退到浏览器方式:', e.message)
+  }
+  if (fileInputRef.value) {
+    fileInputRef.value.click()
+  }
 }
 
-const selectFolder = async () => {
-  const result = await window.electronAPI.selectFolder()
-  if (result.canceled || !result.filePaths?.length) return
-  const folder = result.filePaths[0]
-  Message.warning('文件夹扫描将在主进程完成，此处演示选择功能')
+const handleSelectFolder = async () => {
+  try {
+    if (window.electronAPI && typeof window.electronAPI.selectFolder === 'function') {
+      const result = await window.electronAPI.selectFolder()
+      if (result && !result.canceled && result.filePaths && result.filePaths.length > 0) {
+        const folder = result.filePaths[0]
+        Message.info('文件夹扫描功能开发中，请使用选择文件方式')
+        return
+      }
+      if (result && result.canceled) return
+    }
+  } catch (e) {
+    console.warn('文件夹选择失败:', e.message)
+  }
+  Message.info('浏览器环境暂不支持文件夹选择，请使用选择文件方式')
+}
+
+const onFileInputChange = async (e) => {
+  const files = e.target.files
+  if (!files || !files.length) return
+  const items = []
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    const ext = getFileExt(file.name)
+    const type = getFileType(file.name)
+    let preview = null
+    if (type === 'image') {
+      try {
+        preview = await new Promise((resolve) => {
+          const reader = new FileReader()
+          reader.onload = (ev) => resolve(ev.target.result)
+          reader.onerror = () => resolve(null)
+          reader.readAsDataURL(file)
+        })
+      } catch (e) {
+        preview = null
+      }
+    }
+    items.push({
+      path: file.name,
+      name: file.name,
+      size: file.size,
+      type,
+      ext,
+      preview,
+      _browserFile: file
+    })
+  }
+  previewList.value = [...previewList.value, ...items]
+  if (fileInputRef.value) fileInputRef.value.value = ''
 }
 
 const processFiles = async (paths) => {
-  const api = window.electronAPI
   const items = []
   for (const p of paths) {
     try {
-      const stat = await api.statFile(p)
+      let stat = { size: 0 }
+      if (window.electronAPI && typeof window.electronAPI.statFile === 'function') {
+        stat = await window.electronAPI.statFile(p)
+      }
       const ext = getFileExt(p)
       const type = getFileType(p)
       const name = p.split(/[\\/]/).pop()
@@ -227,7 +299,7 @@ const processFiles = async (paths) => {
       items.push({
         path: p,
         name,
-        size: stat.size,
+        size: stat ? stat.size : 0,
         type,
         ext,
         preview
@@ -249,11 +321,25 @@ const handleImport = async () => {
     Message.warning('请先选择要导入的文件')
     return
   }
+
+  if (!window.electronAPI) {
+    Message.error('导入功能需要在 Electron 环境中运行')
+    return
+  }
+
   importing.value = true
   currentIndex.value = 0
-  const api = window.electronAPI
-  const paths = await api.getPaths()
-  const mediaDir = paths.mediaDir
+
+  let mediaDir = ''
+  try {
+    const paths = await window.electronAPI.getPaths()
+    mediaDir = paths && paths.mediaDir ? paths.mediaDir : ''
+  } catch (e) {
+    console.error('获取媒体目录失败:', e)
+    Message.error('获取媒体目录失败，请重试')
+    importing.value = false
+    return
+  }
 
   const tags = formData.value.tags
     ? formData.value.tags.split(/[,，]/).map(s => s.trim()).filter(Boolean)
@@ -269,12 +355,19 @@ const handleImport = async () => {
       const destName = `${Date.now()}_${uuid}.${item.ext}`
       const destPath = `${mediaDir}\\${destName}`
 
-      await api.copyFile(item.path, destPath)
+      try {
+        if (window.electronAPI.copyFile) {
+          await window.electronAPI.copyFile(item.path, destPath)
+        }
+      } catch (copyErr) {
+        console.warn('文件复制失败，跳过:', item.name, copyErr.message)
+        continue
+      }
 
       let exifData = {}
-      if (formData.value.readExif && item.type === 'image') {
+      if (formData.value.readExif && item.type === 'image' && window.electronAPI.readFile) {
         try {
-          const buffer = await api.readFile(item.path)
+          const buffer = await window.electronAPI.readFile(item.path)
           const uint8 = new Uint8Array(buffer)
           exifData = await exifr.parse(uint8, {
             gps: true,
@@ -282,7 +375,7 @@ const handleImport = async () => {
             xmp: true
           }) || {}
         } catch (e) {
-          console.warn('EXIF parse failed:', e)
+          console.warn('EXIF 解析失败:', e.message)
         }
       }
 
@@ -293,24 +386,24 @@ const handleImport = async () => {
       let width = null
       let height = null
 
-      if (exifData.DateTimeOriginal) {
+      if (exifData && exifData.DateTimeOriginal) {
         takenAt = new Date(exifData.DateTimeOriginal).toISOString()
       }
-      if (exifData.latitude !== undefined) latitude = exifData.latitude
-      if (exifData.longitude !== undefined) longitude = exifData.longitude
-      if (exifData.Make || exifData.Model) {
+      if (exifData && exifData.latitude !== undefined) latitude = exifData.latitude
+      if (exifData && exifData.longitude !== undefined) longitude = exifData.longitude
+      if (exifData && (exifData.Make || exifData.Model)) {
         camera = [exifData.Make, exifData.Model].filter(Boolean).join(' ')
       }
-      if (exifData.ImageWidth) width = exifData.ImageWidth
-      if (exifData.ImageHeight) height = exifData.ImageHeight
+      if (exifData && exifData.ImageWidth) width = exifData.ImageWidth
+      if (exifData && exifData.ImageHeight) height = exifData.ImageHeight
 
       mediaItems.push({
         travel_id: formData.value.travelId || null,
         file_name: destName,
         original_name: item.name,
         file_path: destPath,
-        file_size: item.size,
-        file_type: item.type,
+        file_size: item.size || 0,
+        file_type: item.type || 'image',
         mime_type: getMime(item.ext),
         width,
         height,
@@ -322,6 +415,11 @@ const handleImport = async () => {
       })
     }
 
+    if (mediaItems.length === 0) {
+      Message.warning('没有成功导入的文件')
+      return
+    }
+
     const ids = await mediaStore.bulkCreateMedia(mediaItems)
     Message.success(`成功导入 ${ids.length} 个文件`)
     emit('success', ids)
@@ -330,7 +428,7 @@ const handleImport = async () => {
     visible.value = false
   } catch (e) {
     console.error('Import failed:', e)
-    Message.error('导入失败：' + e.message)
+    Message.error('导入失败：' + (e && e.message ? e.message : '未知错误'))
   } finally {
     importing.value = false
     currentIndex.value = 0

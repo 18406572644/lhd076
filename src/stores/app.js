@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import dayjs from 'dayjs'
 import { v4 as uuidv4 } from 'uuid'
 
-const api = window.electronAPI
+const api = window.electronAPI || {}
 
 export const useAppStore = defineStore('app', {
   state: () => ({
@@ -12,7 +12,24 @@ export const useAppStore = defineStore('app', {
   }),
   actions: {
     async init() {
-      this.paths = await api.getPaths()
+      try {
+        if (api && typeof api.getPaths === 'function') {
+          this.paths = await api.getPaths()
+        } else {
+          this.paths = {
+            mediaDir: '',
+            dataDir: '',
+            userData: ''
+          }
+        }
+      } catch (e) {
+        console.warn('获取路径失败:', e)
+        this.paths = {
+          mediaDir: '',
+          dataDir: '',
+          userData: ''
+        }
+      }
     },
     formatFileSize(bytes) {
       if (!bytes) return '0 B'
