@@ -16,6 +16,12 @@
         <a-button type="primary" :icon="iconRefresh" size="small" @click="loadData">
           刷新数据
         </a-button>
+        <a-button type="outline" :icon="iconSetting" size="small" @click="showConfig = true">
+          报告设置
+        </a-button>
+        <a-button type="outline" :icon="iconEye" size="small" @click="openPreview">
+          预览报告
+        </a-button>
       </div>
     </div>
 
@@ -23,19 +29,23 @@
       <div class="report-main">
         <a-card class="report-header-card" :bordered="false">
           <div class="report-title-block">
-            <div class="rt-icon">✈️</div>
-            <div>
-              <h1 class="rt-title">{{ reportTitle }}</h1>
-              <div class="rt-subtitle">由 TravelMemory · 旅行记忆 自动生成</div>
+            <div class="rt-preview" v-if="customCover">
+              <img :src="'file:///' + customCover.replace(/\\/g, '/')" />
+            </div>
+            <div class="rt-icon" v-else>✈️</div>
+            <div class="rt-text-wrap">
+              <h1 class="rt-title">{{ displayTitle }}</h1>
+              <div class="rt-subtitle">{{ displaySubtitle }}</div>
             </div>
           </div>
           <div class="rt-meta">
+            <div><span class="rl">报告模板</span><span class="rv">{{ currentTemplate.name }} {{ currentTemplate.preview }}</span></div>
             <div><span class="rl">报告生成</span><span class="rv">{{ today }}</span></div>
             <div v-if="dateRange"><span class="rl">时间跨度</span><span class="rv">{{ dateRange }}</span></div>
           </div>
         </a-card>
 
-        <a-row :gutter="16" style="margin-bottom: 20px;">
+        <a-row :gutter="16" style="margin-bottom: 20px;" v-if="isModuleActive('overview')">
           <a-col :span="6" v-for="(s, i) in summaryStats" :key="i">
             <div class="mini-stat" :style="{ background: s.bg }">
               <div class="ms-icon" :style="{ color: s.color }">{{ s.icon }}</div>
@@ -45,7 +55,7 @@
           </a-col>
         </a-row>
 
-        <a-card class="section-card" :bordered="false" title="📊 旅行概览">
+        <a-card class="section-card" :bordered="false" title="📊 旅行概览" v-if="isModuleActive('overview')">
           <a-descriptions :column="2" bordered size="small">
             <a-descriptions-item label="旅行次数">{{ overview.travels }} 次</a-descriptions-item>
             <a-descriptions-item label="相册数量">{{ overview.albums }} 个</a-descriptions-item>
@@ -56,7 +66,7 @@
           </a-descriptions>
         </a-card>
 
-        <a-card class="section-card" :bordered="false" title="💰 花费统计" v-if="expenseTotal > 0">
+        <a-card class="section-card" :bordered="false" title="💰 花费统计" v-if="isModuleActive('expenses') && expenseTotal > 0">
           <div class="expense-overview">
             <div class="eo-total">
               <div class="eo-label">累计花费</div>
@@ -78,32 +88,43 @@
           </div>
         </a-card>
 
-        <a-card class="section-card" :bordered="false" title="📝 旅行清单" v-if="travelList.length">
-          <a-table :data="travelList" :pagination="false" size="small">
-            <template #columns>
-              <a-table-column title="旅行" width="30%">
-                <template #cell="{ record }">
-                  <span class="travel-link" @click="goTravel(record.id)">{{ record.title }}</span>
-                </template>
-              </a-table-column>
-              <a-table-column title="地点" data-index="location" width="18%" />
-              <a-table-column title="日期" width="22%">
-                <template #cell="{ record }">
-                  {{ record.start_date || '-' }} ~ {{ record.end_date || record.start_date || '-' }}
-                </template>
-              </a-table-column>
-              <a-table-column title="照片" data-index="media_count" width="8%" align="center" />
-              <a-table-column title="相册" data-index="album_count" width="8%" align="center" />
-              <a-table-column title="天数" width="8%" align="center">
-                <template #cell="{ record }">
-                  {{ getDays(record) }}
-                </template>
-              </a-table-column>
-            </template>
-          </a-table>
+        <a-card class="section-card" :bordered="false" title="📝 行程安排" v-if="isModuleActive('itinerary') && travelList.length">
+          <div class="itinerary-timeline">
+            <div v-for="(t, idx) in travelList" :key="t.id" class="it-item">
+              <div class="it-dot">{{ idx + 1 }}</div>
+              <div class="it-body">
+                <div class="it-title">
+                  <span class="travel-link" @click="goTravel(t.id)">{{ t.title }}</span>
+                </div>
+                <div class="it-meta">
+                  <span v-if="t.location">📍 {{ t.location }}</span>
+                  <span v-if="t.start_date">📅 {{ t.start_date }}{{ t.end_date ? ' ~ ' + t.end_date : '' }}</span>
+                  <span>⏱️ {{ getDays(t) }}</span>
+                </div>
+                <div class="it-desc" v-if="t.description">{{ t.description }}</div>
+                <div class="it-counts">
+                  <span>📷 {{ t.media_count || 0 }} 张照片</span>
+                  <span>📁 {{ t.album_count || 0 }} 个相册</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </a-card>
 
-        <a-card class="section-card" :bordered="false" title="🏷️ 热门标签" v-if="topTags.length">
+        <a-card class="section-card" :bordered="false" title="🗺️ 地图足迹" v-if="isModuleActive('map') && locationList.length">
+          <div class="map-footprint">
+            <div v-for="(loc, i) in locationList" :key="i" class="mf-item">
+              <div class="mf-no">{{ i + 1 }}</div>
+              <div class="mf-info">
+                <div class="mf-name">{{ loc.name || loc.location || '未知地点' }}</div>
+                <div class="mf-coord" v-if="loc.latitude && loc.longitude">{{ Number(loc.latitude).toFixed(4) }}, {{ Number(loc.longitude).toFixed(4) }}</div>
+                <div class="mf-travel" v-if="loc.travelName">来自「{{ loc.travelName }}」</div>
+              </div>
+            </div>
+          </div>
+        </a-card>
+
+        <a-card class="section-card" :bordered="false" title="🏷️ 热门标签" v-if="isModuleActive('overview') && topTags.length">
           <div class="tags-cloud">
             <a-tag
               v-for="(t, i) in topTags"
@@ -116,12 +137,22 @@
           </div>
         </a-card>
 
-        <a-card class="section-card" :bordered="false" title="📸 精选照片" v-if="coverPhotos.length">
+        <a-card class="section-card" :bordered="false" title="📸 精选照片" v-if="isModuleActive('highlights') && coverPhotos.length">
           <div class="cover-grid">
-            <div v-for="(p, i) in coverPhotos" :key="p.id" class="cover-item">
+            <div v-for="(p, i) in coverPhotos" :key="p.id" class="cover-item" :class="{ big: i === 0 }">
               <img v-if="p.file_type === 'image'" :src="'file:///' + p.file_path.replace(/\\/g, '/')"
                    @error="e => e.target.style.display='none'" />
               <div v-else class="cover-video">🎬</div>
+              <div v-if="p.description" class="cover-caption">{{ p.description }}</div>
+            </div>
+          </div>
+        </a-card>
+
+        <a-card class="section-card" :bordered="false" :title="`🖼️ 全部照片缩略图 (${allThumbPhotos.length}张)`" v-if="isModuleActive('thumbnails') && allThumbPhotos.length">
+          <div class="thumbnails-grid">
+            <div v-for="p in allThumbPhotos" :key="p.id" class="thumb-item">
+              <img v-if="p.file_type === 'image'" :src="'file:///' + p.file_path.replace(/\\/g, '/')"
+                   @error="e => e.target.style.display='none'" />
             </div>
           </div>
         </a-card>
@@ -143,11 +174,37 @@
             <a-button block :icon="iconHtml" type="outline" :loading="exportingHtml" @click="exportHtml">
               导出 HTML 电子书
             </a-button>
+            <a-button block :icon="iconWord" type="outline" status="primary" :loading="exportingWord" @click="exportWord">
+              导出 Word 文档
+            </a-button>
+            <a-button block :icon="iconPpt" type="outline" status="warning" :loading="exportingPpt" @click="exportPpt">
+              导出 PPT 演示
+            </a-button>
             <a-button block :icon="iconText" type="outline" status="success" @click="exportJson">
               导出 JSON 数据
             </a-button>
           </div>
         </div>
+
+        <a-card class="aside-card" :bordered="false" title="🎨 当前设置">
+          <div class="current-settings">
+            <div class="cs-row">
+              <span class="cs-label">模板风格</span>
+              <span class="cs-value">{{ currentTemplate.preview }} {{ currentTemplate.name }}</span>
+            </div>
+            <div class="cs-row">
+              <span class="cs-label">启用模块</span>
+              <span class="cs-value">{{ activeModuleCount }}/{{ REPORT_MODULES.length }}</span>
+            </div>
+            <div class="cs-row">
+              <span class="cs-label">自定义封面</span>
+              <span class="cs-value">{{ customCover ? '已设置' : '未设置' }}</span>
+            </div>
+            <a-button type="outline" size="small" block style="margin-top: 12px" @click="showConfig = true">
+              修改设置
+            </a-button>
+          </div>
+        </a-card>
 
         <a-card class="aside-card" :bordered="false" title="💡 旅行小贴士">
           <a-timeline>
@@ -162,10 +219,120 @@
     </div>
 
     <a-spin v-if="loading" :loading="true" tip="加载中..." style="min-height: 300px" />
+
+    <a-modal
+      v-model:visible="showConfig"
+      title="报告设置"
+      width="720px"
+      ok-text="保存设置"
+      cancel-text="取消"
+      @ok="saveConfig"
+      unmount-on-close
+    >
+      <a-tabs default-active-key="template">
+        <a-tab-pane key="template" title="🎨 模板选择">
+          <div class="template-grid">
+            <div
+              v-for="t in Object.values(REPORT_TEMPLATES)"
+              :key="t.id"
+              class="template-card"
+              :class="{ active: config.template === t.id }"
+              @click="config.template = t.id"
+            >
+              <div class="tc-preview">{{ t.preview }}</div>
+              <div class="tc-name">{{ t.name }}</div>
+              <div class="tc-desc">{{ t.description }}</div>
+              <div class="tc-check" v-if="config.template === t.id">✓</div>
+            </div>
+          </div>
+        </a-tab-pane>
+
+        <a-tab-pane key="modules" title="📋 模块设置">
+          <div class="modules-list">
+            <div
+              v-for="m in REPORT_MODULES"
+              :key="m.id"
+              class="module-item"
+              :class="{ active: config.modules[m.id] }"
+              @click="config.modules[m.id] = !config.modules[m.id]"
+            >
+              <div class="mi-check">
+                <a-checkbox :checked="config.modules[m.id]" />
+              </div>
+              <div class="mi-icon">{{ m.icon }}</div>
+              <div class="mi-info">
+                <div class="mi-name">{{ m.name }}</div>
+              </div>
+            </div>
+          </div>
+        </a-tab-pane>
+
+        <a-tab-pane key="custom" title="✏️ 自定义内容">
+          <a-form layout="vertical">
+            <a-form-item label="报告标题">
+              <a-input
+                v-model="config.customTitle"
+                :placeholder="`默认：${defaultTitle}`"
+                allow-clear
+                maxlength="50"
+                show-word-limit
+              />
+            </a-form-item>
+            <a-form-item label="副标题">
+              <a-input
+                v-model="config.customSubtitle"
+                :placeholder="`默认：由 TravelMemory · 旅行记忆 自动生成`"
+                allow-clear
+                maxlength="100"
+                show-word-limit
+              />
+            </a-form-item>
+            <a-form-item label="自定义封面图">
+              <div class="cover-uploader">
+                <div class="cu-preview" v-if="config.customCover" @click="selectCoverImage">
+                  <img :src="'file:///' + config.customCover.replace(/\\/g, '/')" />
+                  <div class="cu-mask"><icon-edit :size="18" /> 更换</div>
+                </div>
+                <div class="cu-placeholder" v-else @click="selectCoverImage">
+                  <icon-plus :size="24" />
+                  <span>点击选择封面图</span>
+                  <div class="cu-tip">推荐尺寸 1200×400 以上</div>
+                </div>
+                <a-button
+                  v-if="config.customCover"
+                  size="small"
+                  type="text"
+                  status="danger"
+                  style="margin-left: 12px"
+                  @click.stop="config.customCover = ''"
+                >
+                  移除封面
+                </a-button>
+              </div>
+            </a-form-item>
+          </a-form>
+        </a-tab-pane>
+      </a-tabs>
+    </a-modal>
+
+    <a-drawer
+      v-model:visible="showPreview"
+      title="报告预览"
+      width="90%"
+      :body-style="{ padding: 0 }"
+    >
+      <iframe
+        ref="previewIframe"
+        class="preview-iframe"
+        :srcdoc="previewHtml"
+        frameborder="0"
+      ></iframe>
+    </a-drawer>
   </div>
 </template>
 
-<script setup>import { ref, computed, onMounted, watch } from 'vue'
+<script setup>
+import { ref, computed, onMounted, watch, reactive, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import {
@@ -173,10 +340,18 @@ import {
   IconFile,
   IconFilePdf,
   IconCode,
-  IconFileImage
+  IconFileImage,
+  IconSettings,
+  IconEye,
+  IconEdit,
+  IconPlus,
+  IconFolder,
+  IconMenu
 } from '@arco-design/web-vue/es/icon'
 import { formatDate, formatDateTime, formatFileSize, parseTags, getDateRange } from '@/utils'
 import jsPDF from 'jspdf'
+import { REPORT_MODULES, REPORT_TEMPLATES, getTemplate, getActiveModules } from '@/utils/reportTemplates'
+import { buildStyledHtml, buildWordDoc, buildPptSlides } from '@/utils/exportUtils'
 
 const route = useRoute()
 const router = useRouter()
@@ -187,6 +362,12 @@ const iconFile = IconFile
 const iconPdf = IconFilePdf
 const iconHtml = IconCode
 const iconText = IconFileImage
+const iconSetting = IconSettings
+const iconEye = IconEye
+const iconEdit = IconEdit
+const iconPlus = IconPlus
+const iconWord = IconFolder
+const iconPpt = IconMenu
 
 const loading = ref(true)
 const travels = ref([])
@@ -199,6 +380,24 @@ const allMedia = ref([])
 const allTags = ref([])
 const exportingPdf = ref(false)
 const exportingHtml = ref(false)
+const exportingWord = ref(false)
+const exportingPpt = ref(false)
+const showConfig = ref(false)
+const showPreview = ref(false)
+const previewIframe = ref(null)
+
+const defaultModules = {}
+for (const m of REPORT_MODULES) {
+  defaultModules[m.id] = m.default
+}
+
+const config = reactive({
+  template: 'elegant',
+  modules: { ...defaultModules },
+  customTitle: '',
+  customSubtitle: '',
+  customCover: ''
+})
 
 const categoryNames = {
   transport: '交通', accommodation: '住宿', food: '餐饮',
@@ -211,13 +410,17 @@ const categoryColors = {
 
 const today = computed(() => formatDate(new Date()))
 
-const reportTitle = computed(() => {
+const defaultTitle = computed(() => {
   if (selectedTravel.value) {
     const t = travels.value.find(x => x.id === selectedTravel.value)
     return t ? `${t.title} · 旅行总结` : '我的旅行记忆总结'
   }
   return '我的旅行记忆 · 年度总结报告'
 })
+
+const displayTitle = computed(() => config.customTitle || defaultTitle.value)
+const displaySubtitle = computed(() => config.customSubtitle || '由 TravelMemory · 旅行记忆 自动生成')
+const customCover = computed(() => config.customCover)
 
 const dateRange = computed(() => {
   const dates = travelList.value.flatMap(t => [t.start_date, t.end_date]).filter(Boolean)
@@ -234,6 +437,12 @@ const summaryStats = computed(() => [
   { icon: '🎬', label: '视频总数', value: overview.value.videos, color: '#d1879f', bg: 'linear-gradient(135deg, #fbe8ee, #f6d6e0)' },
   { icon: '📍', label: '足迹地点', value: overview.value.locations, color: '#9a7fc0', bg: 'linear-gradient(135deg, #f0e8f7, #e5d6f0)' }
 ])
+
+const currentTemplate = computed(() => getTemplate(config.template))
+
+const activeModuleCount = computed(() => {
+  return Object.values(config.modules).filter(Boolean).length
+})
 
 const topTags = computed(() => {
   const counter = {}
@@ -257,9 +466,49 @@ const topTags = computed(() => {
 const tagColors = ['blue', 'green', 'orange', 'pink', 'purple', 'cyan', 'arcoblue', 'orangered']
 
 const coverPhotos = computed(() => allMedia.value.slice(0, 8))
+const allThumbPhotos = computed(() => allMedia.value.filter(m => m.file_type === 'image').slice(0, 100))
+
+const locationList = computed(() => {
+  const locs = []
+  const seen = new Set()
+  for (const t of travelList.value) {
+    if (t.location || (t.latitude && t.longitude)) {
+      const key = `${t.location}-${t.latitude}-${t.longitude}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        locs.push({
+          name: t.location,
+          location: t.location,
+          latitude: t.latitude,
+          longitude: t.longitude,
+          travelName: t.title
+        })
+      }
+    }
+  }
+  for (const m of allMedia.value) {
+    if (m.location || (m.latitude && m.longitude)) {
+      const key = `${m.location}-${m.latitude}-${m.longitude}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        locs.push({
+          name: m.location,
+          location: m.location,
+          latitude: m.latitude,
+          longitude: m.longitude,
+          travelName: ''
+        })
+      }
+    }
+  }
+  return locs.slice(0, 50)
+})
+
+const isModuleActive = (id) => {
+  return config.modules[id] !== undefined ? config.modules[id] : true
+}
 
 const getDays = (t) => getDateRange(t.start_date, t.end_date) + '天'
-
 const goTravel = id => router.push(`/travels/${id}`)
 
 const loadData = async () => {
@@ -303,7 +552,7 @@ const loadData = async () => {
         }
       }
       expenseSummary.value.sort((a, b) => b.total - a.total)
-      allMedia.value = await api.media.list({ limit: 100 })
+      allMedia.value = await api.media.list({ limit: 200 })
     }
     allTags.value = await api.tags.list()
   } finally {
@@ -311,27 +560,48 @@ const loadData = async () => {
   }
 }
 
+const buildExportData = () => ({
+  title: defaultTitle.value,
+  subtitle: '由 TravelMemory · 旅行记忆 自动生成',
+  today: today.value,
+  overview: overview.value,
+  summaryStats: summaryStats.value,
+  travelList: travelList.value,
+  expenseSummary: expenseSummary.value,
+  expenseTotal: expenseTotal.value,
+  expensePerTrip: overview.value.travels > 0 ? expenseTotal.value / overview.value.travels : 0,
+  coverPhotos: coverPhotos.value,
+  allPhotos: allThumbPhotos.value,
+  topTags: topTags.value,
+  categoryNames,
+  categoryColors,
+  locations: locationList.value
+})
+
 const buildReportContent = () => {
   const lines = []
-  lines.push(`# ${reportTitle.value}`)
-  lines.push(`> 由 TravelMemory · 旅行记忆 生成 · ${today.value}`)
+  lines.push(`# ${displayTitle.value}`)
+  lines.push(`> ${displaySubtitle.value} · ${today.value}`)
   lines.push('')
-  lines.push('## 📊 概览')
-  lines.push(`- 旅行次数：${overview.value.travels} 次`)
-  lines.push(`- 照片：${overview.value.photos} 张 · 视频：${overview.value.videos} 个`)
-  lines.push(`- 相册：${overview.value.albums} 个`)
-  lines.push(`- 足迹地点：${overview.value.locations} 个`)
-  lines.push(`- 存储占用：${storageText.value}`)
-  if (expenseTotal.value > 0) {
-    lines.push(`- 累计花费：¥ ${expenseTotal.value.toFixed(2)}`)
+  if (isModuleActive('overview')) {
+    lines.push('## 📊 概览')
+    lines.push(`- 旅行次数：${overview.value.travels} 次`)
+    lines.push(`- 照片：${overview.value.photos} 张 · 视频：${overview.value.videos} 个`)
+    lines.push(`- 相册：${overview.value.albums} 个`)
+    lines.push(`- 足迹地点：${overview.value.locations} 个`)
+    lines.push(`- 存储占用：${storageText.value}`)
+    if (expenseTotal.value > 0) {
+      lines.push(`- 累计花费：¥ ${expenseTotal.value.toFixed(2)}`)
+    }
+    lines.push('')
   }
-  lines.push('')
-  if (travelList.value.length) {
-    lines.push('## ✈️ 旅行清单')
+  if (isModuleActive('itinerary') && travelList.value.length) {
+    lines.push('## 📝 行程安排')
     for (const t of travelList.value) {
       lines.push(`### ${t.title}`)
       if (t.location) lines.push(`- 地点：${t.location}`)
       if (t.start_date) lines.push(`- 日期：${t.start_date} ~ ${t.end_date || t.start_date}`)
+      lines.push(`- 天数：${getDays(t)}`)
       lines.push(`- 照片：${t.media_count || 0} 张 · 相册：${t.album_count || 0} 个`)
       if (t.description) lines.push(`> ${t.description}`)
       const tags = parseTags(t.tags)
@@ -339,7 +609,7 @@ const buildReportContent = () => {
       lines.push('')
     }
   }
-  if (expenseSummary.value.length) {
+  if (isModuleActive('expenses') && expenseSummary.value.length) {
     lines.push('## 💰 花费统计')
     lines.push(`**累计：¥ ${expenseTotal.value.toFixed(2)}**`)
     for (const e of expenseSummary.value) {
@@ -348,9 +618,26 @@ const buildReportContent = () => {
     }
     lines.push('')
   }
-  if (topTags.value.length) {
+  if (isModuleActive('map') && locationList.value.length) {
+    lines.push('## 🗺️ 地图足迹')
+    locationList.value.forEach((l, i) => {
+      lines.push(`${i + 1}. ${l.name || l.location || '未知地点'}${l.latitude && l.longitude ? ` (${Number(l.latitude).toFixed(4)}, ${Number(l.longitude).toFixed(4)})` : ''}`)
+    })
+    lines.push('')
+  }
+  if (topTags.value.length && isModuleActive('overview')) {
     lines.push('## 🏷️ 标签')
     lines.push(topTags.value.map(t => `#${t.name}(${t.count})`).join('  '))
+    lines.push('')
+  }
+  if (isModuleActive('highlights') && coverPhotos.value.length) {
+    lines.push('## 📸 精选照片')
+    lines.push(`共 ${coverPhotos.value.filter(p => p.file_type === 'image').length} 张精选照片`)
+    lines.push('')
+  }
+  if (isModuleActive('thumbnails') && allThumbPhotos.value.length) {
+    lines.push('## 🖼️ 全部照片')
+    lines.push(`共 ${allThumbPhotos.value.length} 张照片`)
     lines.push('')
   }
   lines.push('---')
@@ -359,129 +646,50 @@ const buildReportContent = () => {
 }
 
 const buildHtml = () => {
-  const photos = coverPhotos.value
-    .filter(p => p.file_type === 'image')
-    .map(p => `file:///${p.file_path.replace(/\\/g, '/')}`)
-  const md = buildReportContent()
-  return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<title>${reportTitle.value}</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background: linear-gradient(180deg, #f5efe6 0%, #faf6f0 100%);
-  color: #4a4a4a;
-  line-height: 1.7;
-  padding: 40px 20px;
+  return buildStyledHtml({
+    template: config.template,
+    modules: config.modules,
+    customTitle: config.customTitle,
+    customSubtitle: config.customSubtitle,
+    customCover: config.customCover,
+    data: buildExportData()
+  })
 }
-.container { max-width: 820px; margin: 0 auto; background: #fff; padding: 48px; border-radius: 20px; box-shadow: 0 10px 60px rgba(0,0,0,0.08); }
-.cover {
-  text-align: center;
-  padding: 40px 20px 30px;
-  margin-bottom: 30px;
-  background: linear-gradient(135deg, #e3f2f9 0%, #f5efe0 100%);
-  border-radius: 16px;
-  position: relative;
-  overflow: hidden;
+
+const previewHtml = computed(() => buildHtml())
+
+const openPreview = () => {
+  showPreview.value = true
 }
-.cover .plane { font-size: 56px; margin-bottom: 8px; }
-.cover h1 { font-size: 32px; background: linear-gradient(135deg, #5a9fc4, #c4a77d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 6px; }
-.cover .sub { color: #a88a5c; font-size: 13px; }
-h2 { font-size: 20px; color: #5a9fc4; border-left: 4px solid #7eb8da; padding-left: 12px; margin: 32px 0 16px; }
-h3 { font-size: 16px; color: #c4a77d; margin: 20px 0 10px; }
-p, li { font-size: 14px; color: #555; }
-ul { list-style: none; padding-left: 0; }
-ul li { padding: 4px 0; }
-blockquote { background: #faf6f0; border-left: 3px solid #a8d8ea; padding: 10px 14px; border-radius: 6px; margin: 10px 0; color: #777; font-size: 13px; }
-.gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0; }
-.gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0; }
-.stat-item { background: #faf6f0; padding: 16px; border-radius: 12px; text-align: center; }
-.stat-num { font-size: 24px; font-weight: 700; color: #5a9fc4; }
-.stat-label { font-size: 11px; color: #a88a5c; margin-top: 4px; }
-.expense-bar { margin: 8px 0; display: flex; align-items: center; gap: 10px; font-size: 13px; }
-.expense-bar .cat { width: 80px; }
-.expense-bar .bar { flex: 1; height: 8px; background: #f5efe0; border-radius: 4px; overflow: hidden; }
-.expense-bar .fill { height: 100%; border-radius: 4px; }
-.tags { margin-top: 10px; }
-.tags span { display: inline-block; background: #e3f2f9; color: #5a9fc4; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin: 3px; }
-.footer { margin-top: 40px; padding-top: 20px; border-top: 1px dashed #e8e0d4; text-align: center; font-size: 12px; color: #c0b8a8; }
-</style>
-</head>
-<body>
-<div class="container">
-  <div class="cover">
-    <div class="plane">✈️</div>
-    <h1>${reportTitle.value}</h1>
-    <div class="sub">由 TravelMemory · 旅行记忆 生成 · ${today.value}</div>
-  </div>
 
-  <div class="stats">
-    <div class="stat-item"><div class="stat-num">${overview.value.travels}</div><div class="stat-label">旅行次数</div></div>
-    <div class="stat-item"><div class="stat-num">${overview.value.photos}</div><div class="stat-label">照片总数</div></div>
-    <div class="stat-item"><div class="stat-num">${overview.value.videos}</div><div class="stat-label">视频总数</div></div>
-    <div class="stat-item"><div class="stat-num">${overview.value.locations}</div><div class="stat-label">足迹地点</div></div>
-  </div>
+const selectCoverImage = async () => {
+  const result = await api.selectFiles({
+    filters: [{ name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp'] }]
+  })
+  if (result.canceled || !result.filePaths?.length) return
+  config.customCover = result.filePaths[0]
+}
 
-  <h2>✈️ 旅行清单</h2>
-  ${travelList.value.map(t => `
-    <h3>${t.title}</h3>
-    <ul>
-      ${t.location ? `<li>📍 <b>地点：</b>${t.location}</li>` : ''}
-      ${t.start_date ? `<li>📅 <b>日期：</b>${t.start_date} ~ ${t.end_date || t.start_date}</li>` : ''}
-      <li>📷 <b>媒体：</b>${t.media_count || 0} 张照片 · ${t.album_count || 0} 个相册</li>
-    </ul>
-    ${t.description ? `<blockquote>${t.description.replace(/</g, '&lt;')}</blockquote>` : ''}
-  `).join('')}
-
-  ${expenseSummary.value.length ? `
-  <h2>💰 花费统计 (总计 ¥ ${expenseTotal.value.toFixed(2)})</h2>
-  ${expenseSummary.value.map(e => `
-    <div class="expense-bar">
-      <span class="cat">${categoryNames[e.category] || e.category}</span>
-      <div class="bar"><div class="fill" style="width:${(e.total / expenseTotal.value * 100)}%;background:${categoryColors[e.category] || '#ccc'}"></div></div>
-      <span>¥ ${e.total.toFixed(2)} (${((e.total / expenseTotal.value) * 100).toFixed(1)}%)</span>
-    </div>
-  `).join('')}
-  ` : ''}
-
-  ${topTags.value.length ? `
-  <h2>🏷️ 标签</h2>
-  <div class="tags">${topTags.value.map(t => `<span>#${t.name} ×${t.count}</span>`).join('')}</div>
-  ` : ''}
-
-  ${photos.length ? `
-  <h2>📸 精选照片</h2>
-  <div class="gallery">${photos.map(p => `<img src="${p}" onerror="this.style.display='none'" />`).join('')}</div>
-  ` : ''}
-
-  <div class="footer">
-    <p>这份报告由 TravelMemory · 旅行记忆 自动生成</p>
-    <p>愿每一段旅程都被温柔铭记 ❤️</p>
-  </div>
-</div>
-</body>
-</html>`
+const saveConfig = () => {
+  Message.success('报告设置已更新')
+  showConfig.value = false
 }
 
 const exportPdf = async () => {
   exportingPdf.value = true
   try {
     const r = await api.saveDialog({
-      defaultPath: `${reportTitle.value.replace(/[\\/:*?"<>|]/g, '_')}.pdf`,
+      defaultPath: `${displayTitle.value.replace(/[\\/:*?"<>|]/g, '_')}.pdf`,
       filters: [{ name: 'PDF 文件', extensions: ['pdf'] }]
     })
     if (r.canceled || !r.filePath) return
     const doc = new jsPDF()
     doc.setFontSize(20)
     doc.setTextColor(90, 159, 196)
-    doc.text(reportTitle.value, 20, 25)
+    doc.text(displayTitle.value, 20, 25)
     doc.setFontSize(10)
     doc.setTextColor(168, 138, 92)
-    doc.text(`Generated by TravelMemory · ${today.value}`, 20, 35)
+    doc.text(`${displaySubtitle.value} · ${today.value}`, 20, 35)
     doc.setFontSize(11)
     doc.setTextColor(74, 74, 74)
     const content = buildReportContent()
@@ -508,7 +716,7 @@ const exportHtml = async () => {
   exportingHtml.value = true
   try {
     const r = await api.saveDialog({
-      defaultPath: `${reportTitle.value.replace(/[\\/:*?"<>|]/g, '_')}.html`,
+      defaultPath: `${displayTitle.value.replace(/[\\/:*?"<>|]/g, '_')}.html`,
       filters: [{ name: 'HTML 文件', extensions: ['html', 'htm'] }]
     })
     if (r.canceled || !r.filePath) return
@@ -523,22 +731,80 @@ const exportHtml = async () => {
   }
 }
 
+const exportWord = async () => {
+  exportingWord.value = true
+  try {
+    const r = await api.saveDialog({
+      defaultPath: `${displayTitle.value.replace(/[\\/:*?"<>|]/g, '_')}.doc`,
+      filters: [{ name: 'Word 文档', extensions: ['doc', 'docx'] }]
+    })
+    if (r.canceled || !r.filePath) return
+    const docContent = await buildWordDoc({
+      template: config.template,
+      modules: config.modules,
+      customTitle: config.customTitle,
+      customSubtitle: config.customSubtitle,
+      customCover: config.customCover,
+      data: buildExportData()
+    })
+    await api.writeFile(r.filePath, docContent)
+    Message.success(`Word 文档已导出至：${r.filePath}`)
+    setTimeout(() => api.showItemInFolder(r.filePath), 500)
+  } catch (e) {
+    console.error(e)
+    Message.error('导出失败：' + e.message)
+  } finally {
+    exportingWord.value = false
+  }
+}
+
+const exportPpt = async () => {
+  exportingPpt.value = true
+  try {
+    const r = await api.saveDialog({
+      defaultPath: `${displayTitle.value.replace(/[\\/:*?"<>|]/g, '_')}.ppt`,
+      filters: [{ name: 'PowerPoint 演示', extensions: ['ppt', 'pptx'] }]
+    })
+    if (r.canceled || !r.filePath) return
+    const pptContent = await buildPptSlides({
+      template: config.template,
+      modules: config.modules,
+      customTitle: config.customTitle,
+      customSubtitle: config.customSubtitle,
+      data: buildExportData()
+    })
+    await api.writeFile(r.filePath, pptContent)
+    Message.success(`PPT 演示已导出至：${r.filePath}`)
+    setTimeout(() => api.showItemInFolder(r.filePath), 500)
+  } catch (e) {
+    console.error(e)
+    Message.error('导出失败：' + e.message)
+  } finally {
+    exportingPpt.value = false
+  }
+}
+
 const exportJson = async () => {
   try {
     const r = await api.saveDialog({
-      defaultPath: `${reportTitle.value.replace(/[\\/:*?"<>|]/g, '_')}.json`,
+      defaultPath: `${displayTitle.value.replace(/[\\/:*?"<>|]/g, '_')}.json`,
       filters: [{ name: 'JSON 数据', extensions: ['json'] }]
     })
     if (r.canceled || !r.filePath) return
     const data = {
       generatedAt: new Date().toISOString(),
-      reportTitle: reportTitle.value,
+      reportTitle: displayTitle.value,
+      customSubtitle: config.customSubtitle,
+      customCover: config.customCover,
+      template: config.template,
+      activeModules: getActiveModules(config.modules).map(m => m.id),
       overview: overview.value,
       travels: travelList.value,
       mediaCount: allMedia.value.length,
       expenseTotal: expenseTotal.value,
       expenseSummary: expenseSummary.value,
-      topTags: topTags.value
+      topTags: topTags.value,
+      locations: locationList.value
     }
     await api.writeFile(r.filePath, JSON.stringify(data, null, 2))
     Message.success(`JSON 数据已导出`)
@@ -588,6 +854,16 @@ watch(selectedTravel, loadData)
     margin-bottom: 16px;
   }
 
+  .rt-preview {
+    width: 100px;
+    height: 70px;
+    border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid #e8e0d4;
+    img { width: 100%; height: 100%; object-fit: cover; }
+  }
+
   .rt-icon {
     width: 60px;
     height: 60px;
@@ -597,7 +873,10 @@ watch(selectedTravel, loadData)
     align-items: center;
     justify-content: center;
     font-size: 28px;
+    flex-shrink: 0;
   }
+
+  .rt-text-wrap { flex: 1; min-width: 0; }
 
   .rt-title {
     font-size: 24px;
@@ -620,6 +899,7 @@ watch(selectedTravel, loadData)
     padding-top: 14px;
     border-top: 1px dashed #e8e0d4;
     font-size: 12px;
+    flex-wrap: wrap;
 
     .rl { color: #a88a5c; margin-right: 6px; }
     .rv { color: #4a4a4a; font-weight: 500; }
@@ -646,6 +926,76 @@ watch(selectedTravel, loadData)
       color: #4a4a4a;
     }
   }
+
+  .itinerary-timeline { position: relative; padding-left: 28px; }
+  .itinerary-timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: linear-gradient(180deg, #7eb8da, transparent);
+  }
+  .it-item { position: relative; margin-bottom: 18px; }
+  .it-dot {
+    position: absolute;
+    left: -24px;
+    top: 4px;
+    width: 20px;
+    height: 20px;
+    background: #7eb8da;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 2px #7eb8da44;
+  }
+  .it-body {
+    padding: 12px 16px;
+    background: #faf6f0;
+    border-radius: 12px;
+  }
+  .it-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .it-meta { display: flex; gap: 14px; font-size: 12px; color: #a88a5c; flex-wrap: wrap; margin-bottom: 6px; }
+  .it-desc { font-size: 13px; color: #555; padding: 8px 12px; background: #fff; border-radius: 8px; border-left: 3px solid #7eb8da; margin-bottom: 6px; }
+  .it-counts { display: flex; gap: 14px; font-size: 12px; color: #888; }
+  .travel-link { color: #5a9fc4; cursor: pointer; font-weight: 500; }
+  .travel-link:hover { text-decoration: underline; }
+
+  .map-footprint {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .mf-item {
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #f5f9fc;
+    border-radius: 10px;
+    align-items: flex-start;
+  }
+  .mf-no {
+    width: 24px;
+    height: 24px;
+    background: #9a7fc0;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .mf-name { font-size: 13px; font-weight: 500; color: #4a4a4a; }
+  .mf-coord { font-size: 10px; color: #9a7fc0; font-family: monospace; margin-top: 2px; }
+  .mf-travel { font-size: 11px; color: #a88a5c; margin-top: 2px; }
 
   .expense-overview {
     display: flex;
@@ -681,9 +1031,6 @@ watch(selectedTravel, loadData)
   .ec-fill { height: 100%; border-radius: 5px; transition: width 0.5s ease; }
   .ec-amount { color: #8a8a8a; white-space: nowrap; }
 
-  .travel-link { color: #5a9fc4; cursor: pointer; font-weight: 500; }
-  .travel-link:hover { text-decoration: underline; }
-
   .tags-cloud { padding: 8px 0; }
 
   .cover-grid {
@@ -701,6 +1048,34 @@ watch(selectedTravel, loadData)
     align-items: center;
     justify-content: center;
     font-size: 28px;
+    position: relative;
+    img { width: 100%; height: 100%; object-fit: cover; }
+    &.big {
+      grid-column: span 2;
+      grid-row: span 2;
+      aspect-ratio: 1;
+    }
+  }
+  .cover-video { background: #e8e0d4; }
+  .cover-caption {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 6px 10px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.6));
+    color: #fff;
+    font-size: 11px;
+  }
+
+  .thumbnails-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+  }
+  .thumb-item {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #f5efe0;
     img { width: 100%; height: 100%; object-fit: cover; }
   }
 
@@ -725,6 +1100,142 @@ watch(selectedTravel, loadData)
     .ec-buttons { display: flex; flex-direction: column; gap: 10px; }
   }
 
-  .aside-card { border-radius: 16px !important; border: 1px solid #f0ebe3 !important; }
+  .aside-card { border-radius: 16px !important; border: 1px solid #f0ebe3 !important; margin-bottom: 20px; }
+
+  .current-settings {
+    .cs-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      font-size: 13px;
+      border-bottom: 1px dashed #f0ebe3;
+    }
+    .cs-row:last-of-type { border-bottom: none; }
+    .cs-label { color: #a88a5c; }
+    .cs-value { color: #4a4a4a; font-weight: 500; }
+  }
+
+  .template-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  .template-card {
+    position: relative;
+    padding: 20px;
+    border: 2px solid #f0ebe3;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #faf6f0;
+    &:hover {
+      border-color: #7eb8da;
+      transform: translateY(-2px);
+    }
+    &.active {
+      border-color: #7eb8da;
+      background: #f5f9fc;
+      box-shadow: 0 4px 12px rgba(126, 184, 218, 0.2);
+    }
+  }
+  .tc-preview { font-size: 36px; margin-bottom: 10px; }
+  .tc-name { font-size: 15px; font-weight: 600; color: #4a4a4a; margin-bottom: 4px; }
+  .tc-desc { font-size: 12px; color: #a88a5c; line-height: 1.5; }
+  .tc-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 22px;
+    height: 22px;
+    background: #7eb8da;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .modules-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .module-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid #f0ebe3;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    &:hover { border-color: #7eb8da; background: #fafcfd; }
+    &.active {
+      border-color: #7eb8da;
+      background: #f5f9fc;
+    }
+  }
+  .mi-icon { font-size: 22px; }
+  .mi-name { font-size: 14px; font-weight: 500; color: #4a4a4a; }
+
+  .cover-uploader {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .cu-preview, .cu-placeholder {
+    width: 240px;
+    height: 100px;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    border: 2px dashed #e8e0d4;
+  }
+  .cu-preview {
+    border-style: solid;
+    border-color: transparent;
+    img { width: 100%; height: 100%; object-fit: cover; }
+    &:hover .cu-mask { opacity: 1; }
+  }
+  .cu-mask {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    font-size: 13px;
+  }
+  .cu-placeholder {
+    background: #faf6f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: #b0a08a;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    &:hover {
+      border-color: #7eb8da;
+      color: #7eb8da;
+      background: #f5f9fc;
+    }
+  }
+  .cu-tip { font-size: 11px; opacity: 0.8; }
+
+  .preview-iframe {
+    width: 100%;
+    height: calc(100vh - 60px);
+    border: none;
+  }
 }
 </style>
