@@ -1,0 +1,197 @@
+@primary-color: #7eb8da;
+@primary-light: #a8d8ea;
+@primary-dark: #5a9fc4;
+@secondary-color: #c4a77d;
+@secondary-light: #dcc9a8;
+@secondary-dark: #a88a5c;
+@bg-color: #faf6f0;
+@bg-card: #ffffff;
+@bg-sidebar: #f5efe6;
+@text-color: #4a4a4a;
+@text-light: #8a8a8a;
+@text-lighter: #b0b0b0;
+@border-color: #e8e0d4;
+@border-light: #f0ebe3;
+@accent-green: #8bc9a0;
+@accent-pink: #e8a5b9;
+@accent-yellow: #f2d59e;
+@shadow-light: 0 2px 12px 0 rgba(126, 184, 218, 0.08);
+@shadow-hover: 0 4px 20px 0 rgba(126, 184, 218, 0.15);
+@radius-sm: 6px;
+@radius-md: 10px;
+@radius-lg: 16px;
+@radius-xl: 20px;
+
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: @bg-color;
+  color: @text-color;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: @border-light;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: @secondary-light;
+  border-radius: 4px;
+  &:hover {
+    background: @secondary-color;
+  }
+}
+
+.arco-layout {
+  background: @bg-color !important;
+}
+
+.arco-menu-vertical {
+  background: transparent !important;
+  border-right: none !important;
+}
+
+.arco-menu-item {
+  margin: 4px 8px !important;
+  border-radius: @radius-sm;
+  color: @text-color !important;
+  &:hover {
+    background: @border-light !important;
+  }
+  &.arco-menu-selected {
+    background: @primary-light !important;
+    color: #fff !important;
+    .arco-icon {
+      color: #fff !important;
+    }
+  }
+}
+
+.arco-card {
+  background: @bg-card;
+  border: 1px solid @border-light;
+  border-radius: @radius-lg;
+  box-shadow: @shadow-light;
+  .arco-card-header {
+    border-bottom: 1px solid @border-light;
+  }
+}
+
+.arco-btn-primary {
+  background-color: @primary-color !important;
+  border-color: @primary-color !important;
+  &:hover {
+    background-color: @primary-dark !important;
+    border-color: @primary-dark !important;
+  }
+}
+
+.arco-btn-secondary {
+  background-color: @secondary-color !important;
+  border-color: @secondary-color !important;
+  color: #fff !important;
+  &:hover {
+    background-color: @secondary-dark !important;
+    border-color: @secondary-dark !important;
+  }
+}
+
+.arco-btn-outline {
+  color: @primary-color !important;
+  border-color: @primary-color !important;
+}
+
+.arco-tag {
+  border-radius: 20px !important;
+  padding: 0 12px !important;
+}
+.arco-tag-color-blue {
+  background-color: @primary-light !important;
+  color: #fff !important;
+  border: none !important;
+}
+.arco-tag-color-orange {
+  background-color: @secondary-color !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.arco-input, .arco-textarea, .arco-select-view {
+  border-color: @border-color !important;
+  border-radius: @radius-sm !important;
+  &:hover {
+    border-color: @primary-light !important;
+  }
+  &.arco-input-focus, &.arco-textarea-focus, &.arco-select-view-focus {
+    border-color: @primary-color !important;
+  }
+}
+
+.arco-modal, .arco-drawer {
+  border-radius: @radius-lg !important;
+}
+
+.arco-table {
+  border-radius: @radius-md;
+  overflow: hidden;
+  thead th {
+    background: @bg-sidebar !important;
+    color: @text-color !important;
+  }
+}
+
+.arco-badge-dot {
+  background-color: @accent-pink;
+}
+
+.tm-card-hover {
+  transition: all 0.3s ease;
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: @shadow-hover;
+  }
+}
+
+.tm-text-primary {
+  color: @primary-color;
+}
+.tm-text-secondary {
+  color: @secondary-color;
+}
+.tm-text-light {
+  color: @text-light;
+}
+
+.tm-bg-primary {
+  background-color: @primary-color;
+}
+.tm-bg-secondary {
+  background-color: @secondary-color;
+}
+
+.page-container {
+  padding: 24px;
+  height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: @text-color;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  &::before {
+    content: '';
+    width: 4px;
+    height: 20px;
+    background: linear-gradient(180deg, @primary-color, @secondary-color);
+    border-radius: 2px;
+  }
+}
