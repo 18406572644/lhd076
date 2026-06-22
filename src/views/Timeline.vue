@@ -112,7 +112,7 @@
 
     <a-modal
       v-model:visible="monthExpandVisible"
-      :title="expandedMonth ? expandedMonth.year + '年' + expandedMonth.month + '月'" : '月份详情'"
+      :title="expandedMonth ? expandedMonth.year + '年' + expandedMonth.month + '月' : '月份详情'"
       width="900px"
       :footer="false"
     >

@@ -5,7 +5,7 @@
     @cancel="selectorVisible = false"
     ok-text="确认选择"
     :ok-button-props="{ disabled: selected.length === 0 }"
-    :width="'900px"
+    :width="'900px'"
     unmount-on-close
     title="选择媒体文件"
   >
