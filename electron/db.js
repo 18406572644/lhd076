@@ -103,6 +103,53 @@ class TravelDB {
       CREATE INDEX IF NOT EXISTS idx_album_media_media ON album_media(media_id);
       CREATE INDEX IF NOT EXISTS idx_expenses_travel ON expenses(travel_id);
       CREATE INDEX IF NOT EXISTS idx_itinerary_travel ON itinerary(travel_id);
+
+      CREATE TABLE IF NOT EXISTS photo_books (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        album_id INTEGER,
+        title TEXT NOT NULL,
+        description TEXT,
+        template_type TEXT NOT NULL DEFAULT 'a4_hardcover',
+        page_count INTEGER DEFAULT 0,
+        cover_image TEXT,
+        config TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS photo_book_pages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        photo_book_id INTEGER NOT NULL,
+        page_number INTEGER NOT NULL DEFAULT 1,
+        template_id TEXT,
+        background_color TEXT DEFAULT '#ffffff',
+        background_image TEXT,
+        config TEXT,
+        sort_order INTEGER DEFAULT 0,
+        FOREIGN KEY (photo_book_id) REFERENCES photo_books(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS photo_book_elements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        page_id INTEGER NOT NULL,
+        element_type TEXT NOT NULL,
+        media_id INTEGER,
+        content TEXT,
+        x REAL DEFAULT 0,
+        y REAL DEFAULT 0,
+        width REAL DEFAULT 100,
+        height REAL DEFAULT 100,
+        rotation REAL DEFAULT 0,
+        z_index INTEGER DEFAULT 0,
+        style TEXT,
+        config TEXT,
+        FOREIGN KEY (page_id) REFERENCES photo_book_pages(id) ON DELETE CASCADE,
+        FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_photo_book_pages_book ON photo_book_pages(photo_book_id);
+      CREATE INDEX IF NOT EXISTS idx_photo_book_elements_page ON photo_book_elements(page_id);
     `)
   }
 
@@ -504,6 +551,143 @@ class TravelDB {
       FROM travels WHERE latitude IS NOT NULL AND longitude IS NOT NULL
     `).all()
     return { media, travels }
+  }
+
+  getPhotoBooks() {
+    return this.db.prepare(`
+      SELECT pb.*, a.title as album_title,
+        (SELECT COUNT(*) FROM photo_book_pages p WHERE p.photo_book_id = pb.id) as page_count
+      FROM photo_books pb LEFT JOIN albums a ON pb.album_id = a.id
+      ORDER BY pb.updated_at DESC
+    `).all()
+  }
+
+  getPhotoBook(id) {
+    return this.db.prepare(`
+      SELECT pb.*, a.title as album_title,
+        (SELECT COUNT(*) FROM photo_book_pages p WHERE p.photo_book_id = pb.id) as page_count
+      FROM photo_books pb LEFT JOIN albums a ON pb.album_id = a.id
+      WHERE pb.id = ?
+    `).get(id)
+  }
+
+  createPhotoBook(data) {
+    return this.insert('photo_books', {
+      album_id: data.album_id || null,
+      title: data.title,
+      description: data.description || null,
+      template_type: data.template_type || 'a4_hardcover',
+      cover_image: data.cover_image || null,
+      config: data.config ? JSON.stringify(data.config) : null
+    })
+  }
+
+  updatePhotoBook(id, data) {
+    const updateData = {}
+    const allowed = ['album_id', 'title', 'description', 'template_type', 'cover_image', 'config']
+    for (const key of allowed) {
+      if (data[key] !== undefined) {
+        updateData[key] = key === 'config' ? JSON.stringify(data[key]) : data[key]
+      }
+    }
+    updateData.updated_at = new Date().toISOString()
+    return this.update('photo_books', updateData, { id })
+  }
+
+  deletePhotoBook(id) {
+    return this.delete('photo_books', { id })
+  }
+
+  getPhotoBookPages(bookId) {
+    return this.db.prepare(`
+      SELECT * FROM photo_book_pages 
+      WHERE photo_book_id = ?
+      ORDER BY sort_order ASC, page_number ASC
+    `).all(bookId)
+  }
+
+  createPhotoBookPage(data) {
+    return this.insert('photo_book_pages', {
+      photo_book_id: data.photo_book_id,
+      page_number: data.page_number || 1,
+      template_id: data.template_id || null,
+      background_color: data.background_color || '#ffffff',
+      background_image: data.background_image || null,
+      config: data.config ? JSON.stringify(data.config) : null,
+      sort_order: data.sort_order || 0
+    })
+  }
+
+  updatePhotoBookPage(id, data) {
+    const updateData = {}
+    const allowed = ['page_number', 'template_id', 'background_color', 'background_image', 'config', 'sort_order']
+    for (const key of allowed) {
+      if (data[key] !== undefined) {
+        updateData[key] = key === 'config' ? JSON.stringify(data[key]) : data[key]
+      }
+    }
+    return this.update('photo_book_pages', updateData, { id })
+  }
+
+  deletePhotoBookPage(id) {
+    return this.delete('photo_book_pages', { id })
+  }
+
+  getPageElements(pageId) {
+    return this.db.prepare(`
+      SELECT * FROM photo_book_elements 
+      WHERE page_id = ?
+      ORDER BY z_index ASC, id ASC
+    `).all(pageId)
+  }
+
+  createPageElement(data) {
+    return this.insert('photo_book_elements', {
+      page_id: data.page_id,
+      element_type: data.element_type,
+      media_id: data.media_id || null,
+      content: data.content || null,
+      x: data.x || 0,
+      y: data.y || 0,
+      width: data.width || 100,
+      height: data.height || 100,
+      rotation: data.rotation || 0,
+      z_index: data.z_index || 0,
+      style: data.style ? JSON.stringify(data.style) : null,
+      config: data.config ? JSON.stringify(data.config) : null
+    })
+  }
+
+  updatePageElement(id, data) {
+    const updateData = {}
+    const allowed = ['element_type', 'media_id', 'content', 'x', 'y', 'width', 'height', 'rotation', 'z_index', 'style', 'config']
+    for (const key of allowed) {
+      if (data[key] !== undefined) {
+        updateData[key] = (key === 'style' || key === 'config') ? JSON.stringify(data[key]) : data[key]
+      }
+    }
+    return this.update('photo_book_elements', updateData, { id })
+  }
+
+  deletePageElement(id) {
+    return this.delete('photo_book_elements', { id })
+  }
+
+  getPhotoBookFullData(bookId) {
+    const book = this.getPhotoBook(bookId)
+    if (!book) return null
+    const pages = this.getPhotoBookPages(bookId)
+    for (const page of pages) {
+      try { page.config = page.config ? JSON.parse(page.config) : null } catch (e) { page.config = null }
+      page.elements = this.getPageElements(page.id)
+      for (const el of page.elements) {
+        try { el.style = el.style ? JSON.parse(el.style) : null } catch (e) { el.style = null }
+        try { el.config = el.config ? JSON.parse(el.config) : null } catch (e) { el.config = null }
+      }
+    }
+    try { book.config = book.config ? JSON.parse(book.config) : null } catch (e) { book.config = null }
+    book.pages = pages
+    return book
   }
 }
 

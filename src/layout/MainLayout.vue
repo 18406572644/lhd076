@@ -87,7 +87,8 @@ import {
   IconTool,
   IconFile,
   IconUpload,
-  IconSettings
+  IconSettings,
+  IconBook
 } from '@arco-design/web-vue/es/icon'
 import ImportModal from '@/components/ImportModal.vue'
 import { useAppStore } from '@/stores/app'
@@ -118,6 +119,7 @@ const menuItems = [
   { path: '/travels', label: '旅行', icon: IconCamera },
   { path: '/media', label: '媒体库', icon: IconImage },
   { path: '/albums', label: '相册', icon: IconFileImage },
+  { path: '/photobooks', label: '照片书', icon: IconBook },
   { path: '/timeline', label: '时间轴', icon: IconCalendar },
   { path: '/map', label: '足迹地图', icon: IconLocation },
   { path: '/tools', label: '照片工具', icon: IconTool },

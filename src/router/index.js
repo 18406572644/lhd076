@@ -43,6 +43,12 @@ const routes = [
         meta: { title: '相册详情', hidden: true }
       },
       {
+        path: 'photobooks',
+        name: 'PhotoBooks',
+        component: () => import('@/views/PhotoBooks.vue'),
+        meta: { title: '照片书', icon: 'icon-book' }
+      },
+      {
         path: 'timeline',
         name: 'Timeline',
         component: () => import('@/views/Timeline.vue'),

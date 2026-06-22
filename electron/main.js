@@ -178,7 +178,21 @@ const dbHandlers = {
   'tags:list': () => db.getAllTags(),
   'stats:overview': () => db.getOverviewStats(),
   'stats:timeline': (event, year) => db.getTimelineData(year),
-  'stats:map': () => db.getMapData()
+  'stats:map': () => db.getMapData(),
+  'photobook:list': () => db.getPhotoBooks(),
+  'photobook:get': (event, id) => db.getPhotoBook(id),
+  'photobook:create': (event, data) => db.createPhotoBook(data),
+  'photobook:update': (event, id, data) => db.updatePhotoBook(id, data),
+  'photobook:delete': (event, id) => db.deletePhotoBook(id),
+  'photobook:pages': (event, bookId) => db.getPhotoBookPages(bookId),
+  'photobook:page-create': (event, data) => db.createPhotoBookPage(data),
+  'photobook:page-update': (event, id, data) => db.updatePhotoBookPage(id, data),
+  'photobook:page-delete': (event, id) => db.deletePhotoBookPage(id),
+  'photobook:elements': (event, pageId) => db.getPageElements(pageId),
+  'photobook:element-create': (event, data) => db.createPageElement(data),
+  'photobook:element-update': (event, id, data) => db.updatePageElement(id, data),
+  'photobook:element-delete': (event, id) => db.deletePageElement(id),
+  'photobook:full': (event, id) => db.getPhotoBookFullData(id)
 }
 
 for (const [channel, handler] of Object.entries(dbHandlers)) {

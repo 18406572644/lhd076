@@ -10,7 +10,11 @@ const dbChannels = [
   'media:get-by-album', 'media:get-by-travel',
   'expense:list', 'expense:create', 'expense:update', 'expense:delete', 'expense:summary',
   'itinerary:list', 'itinerary:create', 'itinerary:update', 'itinerary:delete',
-  'tags:list', 'stats:overview', 'stats:timeline', 'stats:map'
+  'tags:list', 'stats:overview', 'stats:timeline', 'stats:map',
+  'photobook:list', 'photobook:get', 'photobook:create', 'photobook:update', 'photobook:delete',
+  'photobook:pages', 'photobook:page-create', 'photobook:page-update', 'photobook:page-delete',
+  'photobook:elements', 'photobook:element-create', 'photobook:element-update', 'photobook:element-delete',
+  'photobook:full'
 ]
 
 const api = {

@@ -26,6 +26,9 @@
             <div class="album-actions">
               <a-button size="small" :icon="iconUpload" @click="importVisible = true">添加照片</a-button>
               <a-button size="small" :icon="iconEdit" @click="formVisible = true">编辑</a-button>
+              <a-button size="small" type="outline" :icon="iconBook" @click="createPhotoBook">
+                制作照片书
+              </a-button>
               <a-button size="small" type="outline" :icon="iconDownload" @click="exportAs('html')">
                 导出 HTML
               </a-button>
@@ -97,6 +100,15 @@
       @change="(i) => previewIndex = i"
       @delete="loadMedia"
     />
+
+    <PhotoBookEditor
+      v-if="photoBookEditorVisible"
+      :album-id="albumId"
+      :initial-photos="mediaList"
+      template-type="a4_hardcover"
+      @close="photoBookEditorVisible = false"
+      @saved="loadAlbum"
+    />
   </div>
   <a-empty v-else />
 </template>
@@ -114,12 +126,14 @@ import {
   IconUpload,
   IconEdit,
   IconDownload,
-  IconFile
+  IconFile,
+  IconBook
 } from '@arco-design/web-vue/es/icon'
 import MediaCard from '@/components/MediaCard.vue'
 import MediaPreview from '@/components/MediaPreview.vue'
 import ImportModal from '@/components/ImportModal.vue'
 import AlbumFormModal from '@/components/AlbumFormModal.vue'
+import PhotoBookEditor from '@/components/PhotoBookEditor.vue'
 import { formatDate } from '@/utils'
 
 const route = useRoute()
@@ -134,6 +148,7 @@ const iconUpload = IconUpload
 const iconEdit = IconEdit
 const iconDownload = IconDownload
 const iconFile = IconFile
+const iconBook = IconBook
 
 const albumId = computed(() => +route.params.id)
 const album = ref(null)
@@ -143,6 +158,7 @@ const importVisible = ref(false)
 const formVisible = ref(false)
 const previewVisible = ref(false)
 const previewIndex = ref(0)
+const photoBookEditorVisible = ref(false)
 
 const currentMedia = computed(() => mediaList.value[previewIndex.value] || null)
 
@@ -220,6 +236,14 @@ const exportImages = async () => {
 
 const exportAs = async (type) => {
   Message.info(`${type.toUpperCase()} 导出功能：请前往"旅行报告"页面使用完整导出功能`)
+}
+
+const createPhotoBook = () => {
+  if (!mediaList.value.length) {
+    Message.warning('相册中还没有照片，请先添加照片')
+    return
+  }
+  photoBookEditorVisible.value = true
 }
 
 const loadAlbum = async () => {
